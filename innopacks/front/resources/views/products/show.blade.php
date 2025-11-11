@@ -138,6 +138,10 @@
           <button class="nav-link" data-bs-toggle="tab" data-bs-target="#product-review"
                   type="button">{{ __('front/product.review') }}</button>
         </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#product-description-size-guide"
+      type="button">{{ __('Size Guide', [], 'en') ?: 'Size Guide' }}</button>
+  </li>
         <li class="nav-item">
           <button class="nav-link correlation" data-bs-toggle="tab"
                   data-bs-target="#product-description-correlation"
@@ -176,6 +180,147 @@
             </table>
           </div>
         @endif
+
+        <div class="tab-pane fade" id="product-description-size-guide" role="tabpanel">
+          @php
+            $sizeGuideDir = public_path('images/size-guides');
+            $sizeImages = [];
+            if (is_dir($sizeGuideDir)) {
+              $files = glob($sizeGuideDir . '/*.{jpg,jpeg,png,gif,svg,webp}', GLOB_BRACE);
+              if ($files) {
+                foreach ($files as $f) {
+                  $sizeImages[] = asset('images/size-guides/' . basename($f));
+                }
+              }
+            }
+          @endphp
+
+          <div class="container">
+            <div class="row">
+              <div class="col-12">
+                @if(count($sizeImages))
+                  {{-- Desktop / md+ slider (multi-column Swiper) --}}
+                  <div class="d-none d-md-block">
+                    <div class="swiper" id="size-guide-swiper-desktop">
+                      <div class="size-guide-swiper-desktop swiper-wrapper">
+                        @foreach($sizeImages as $img)
+                          <div class="swiper-slide">
+                            <div class="size-guide-img">
+                              <img src="{{ $img }}" alt="Size guide image" class="img-fluid rounded shadow-sm" />
+                            </div>
+                          </div>
+                        @endforeach
+                      </div>
+                      <div class="size-guide-pagination" id="size-guide-pagination-desktop"></div>
+                      <div class="swiper-button-prev"></div>
+                      <div class="swiper-button-next"></div>
+                    </div>
+
+                    <script>
+                        var sgDesktop = new Swiper('#size-guide-swiper-desktop', {
+                        slidesPerView: 2,
+                        spaceBetween: 20,
+                        pagination: false,
+                        navigation: {
+                          nextEl: '#size-guide-swiper-desktop .swiper-button-next',
+                          prevEl: '#size-guide-swiper-desktop .swiper-button-prev',
+                        },
+                        breakpoints: {
+                          992: { slidesPerView: 3 },
+                          1200: { slidesPerView: 3 }
+                        },
+                        autoplay: {
+                          delay: 3000,
+                          disableOnInteraction: false,
+                        },
+                        loop: false,
+                      });
+                      // build custom pagination for desktop
+                      (function buildDesktopPagination() {
+                        var container = document.getElementById('size-guide-pagination-desktop');
+                        if (!container) return;
+                        container.innerHTML = '';
+                        for (var i = 0; i < sgDesktop.slides.length; i++) {
+                          var btn = document.createElement('button');
+                          btn.type = 'button';
+                          btn.className = 'size-guide-page' + (i === sgDesktop.activeIndex ? ' active' : '');
+                          btn.setAttribute('data-index', i);
+                          (function (index) {
+                            btn.addEventListener('click', function () { sgDesktop.slideTo(index); });
+                          })(i);
+                          container.appendChild(btn);
+                        }
+                        sgDesktop.on('slideChange', function () {
+                          var nodes = container.querySelectorAll('.size-guide-page');
+                          nodes.forEach(function (n, idx) { n.classList.toggle('active', idx === sgDesktop.activeIndex); });
+                        });
+                      })();
+                    </script>
+                  </div>
+
+                  {{-- Mobile swiper (replicates Home slider structure) --}}
+                  <div class="d-block d-md-none">
+                    <div class="swiper" id="size-guide-swiper-1">
+                      <div class="size-guide-swiper swiper-wrapper">
+                        @foreach($sizeImages as $img)
+                          <div class="swiper-slide">
+                            <div class="size-guide-img">
+                              <img src="{{ $img }}" alt="Size guide image" class="img-fluid rounded shadow-sm" />
+                            </div>
+                          </div>
+                        @endforeach
+                      </div>
+                      <div class="size-guide-pagination" id="size-guide-pagination-1"></div>
+                      <div class="swiper-button-prev"></div>
+                      <div class="swiper-button-next"></div>
+                    </div>
+
+                    <script>
+                        var sgSwiper = new Swiper('#size-guide-swiper-1', {
+                        slidesPerView: 1,
+                        spaceBetween: 12,
+                        pagination: false,
+                        navigation: {
+                          nextEl: '#size-guide-swiper-1 .swiper-button-next',
+                          prevEl: '#size-guide-swiper-1 .swiper-button-prev',
+                        },
+                        autoplay: {
+                          delay: 3000,
+                          disableOnInteraction: false,
+                        },
+                        loop: false,
+                      });
+                      // build custom pagination for mobile
+                      (function buildMobilePagination() {
+                        var container = document.getElementById('size-guide-pagination-1');
+                        if (!container) return;
+                        container.innerHTML = '';
+                        for (var i = 0; i < sgSwiper.slides.length; i++) {
+                          var btn = document.createElement('button');
+                          btn.type = 'button';
+                          btn.className = 'size-guide-page' + (i === sgSwiper.activeIndex ? ' active' : '');
+                          btn.setAttribute('data-index', i);
+                          (function (index) {
+                            btn.addEventListener('click', function () { sgSwiper.slideTo(index); });
+                          })(i);
+                          container.appendChild(btn);
+                        }
+                        sgSwiper.on('slideChange', function () {
+                          var nodes = container.querySelectorAll('.size-guide-page');
+                          nodes.forEach(function (n, idx) { n.classList.toggle('active', idx === sgSwiper.activeIndex); });
+                        });
+                      })();
+                    </script>
+                  </div>
+                @else
+                  <div class="alert alert-info">
+                    No size guide images found. Add images to public/images/size-guides (jpg, png, svg).
+                  </div>
+                @endif
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="tab-pane fade" id="product-review" role="tabpanel">
           @include('products.components._review_section')
@@ -223,6 +368,7 @@
 
       inno.addCart({skuId, quantity, isBuyNow}, this, function (res) {
         if (isBuyNow) {
+          
           window.location.href = '{{ front_route('carts.index') }}';
         }
       })
