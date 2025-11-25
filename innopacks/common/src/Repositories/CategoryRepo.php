@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use InnoShop\Common\Handlers\TranslationHandler;
 use InnoShop\Common\Models\Category;
-use InnoShop\Common\Resources\CategorySimple;
+use InnoShop\Common\Resources\CategoryFrontend;
 use Throwable;
 
 class CategoryRepo extends BaseRepo
@@ -42,7 +42,7 @@ class CategoryRepo extends BaseRepo
             ->orderBy('position')
             ->get();
 
-        return CategorySimple::collection($catalogs)->jsonSerialize();
+        return CategoryFrontend::collection($catalogs)->jsonSerialize();
     }
 
     /**
@@ -371,5 +371,53 @@ class CategoryRepo extends BaseRepo
         }
 
         return $options;
+    }
+
+    /**
+     * Get hierarchical category list with breadcrumb style
+     *
+     * @param  array  $filters
+     * @return array
+     */
+    public function getHierarchicalCategories(array $filters = []): array
+    {
+        // Get all categories with parent-child relationships
+        $allCategories = $this->builder($filters)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        // Build hierarchical structure with breadcrumb paths
+        $hierarchical = [];
+        $this->buildHierarchy($allCategories, $hierarchical, 0, []);
+
+        return $hierarchical;
+    }
+
+    /**
+     * Recursively build hierarchy structure with breadcrumb paths
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection  $categories
+     * @param  array  $result
+     * @param  int  $parentId
+     * @param  array  $parentPath
+     * @return void
+     */
+    private function buildHierarchy($categories, &$result, $parentId = 0, $parentPath = [])
+    {
+        $children = $categories->where('parent_id', $parentId)->sortBy('position');
+
+        foreach ($children as $category) {
+            $currentPath    = array_merge($parentPath, [$category->fallbackName()]);
+            $breadcrumbName = implode(' > ', $currentPath);
+
+            $result[] = [
+                'id'    => $category->id,
+                'name'  => $breadcrumbName,
+                'level' => count($currentPath) - 1,
+            ];
+
+            $this->buildHierarchy($categories, $result, $category->id, $currentPath);
+        }
     }
 }

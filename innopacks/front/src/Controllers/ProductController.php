@@ -18,24 +18,48 @@ use InnoShop\Common\Repositories\ProductRepo;
 use InnoShop\Common\Repositories\ReviewRepo;
 use InnoShop\Common\Resources\ProductVariable;
 use InnoShop\Common\Resources\SkuListItem;
+use InnoShop\Front\Traits\FilterSidebarTrait;
 
 class ProductController extends Controller
 {
+    use FilterSidebarTrait;
+
     /**
+     * Product list page with filter support
      * @param  Request  $request
      * @return mixed
      * @throws Exception
      */
     public function index(Request $request): mixed
     {
-        $filters  = $request->all();
-        $products = ProductRepo::getInstance()->withActive()->list($filters);
+        // Use RequestFilterParser to extract filter conditions
+        $filterParser = new \InnoShop\Common\Services\RequestFilterParser;
+        $filters      = $filterParser->extractFilters($request, [
+            'keyword',
+            'sort',
+            'order',
+            'per_page',
+            'price_from',
+            'price_to',
+            'brand_ids',
+            'attribute_values',
+            'in_stock',
+        ]);
+
+        // Get product list
+        $products = ProductRepo::getInstance()->getFrontList($filters);
+
+        // Use Trait method to get filter sidebar data
+        $filterData = $this->getFilterSidebarData($request);
 
         $data = [
             'products'       => $products,
             'categories'     => CategoryRepo::getInstance()->getTwoLevelCategories(),
             'per_page_items' => CategoryRepo::getInstance()->getPerPageItems(),
         ];
+
+        // Merge filter data
+        $data = array_merge($data, $filterData);
 
         return inno_view('products.index', $data);
     }
@@ -91,16 +115,31 @@ class ProductController extends Controller
         $customerID = current_customer_id();
         $variables  = ProductVariable::collection($product->variables)->jsonSerialize();
 
+        $product->load([
+            'productOptions' => function ($query) {
+                $query->join('options', 'product_options.option_id', '=', 'options.id')
+                    ->orderBy('options.position');
+            },
+            'productOptionValues' => function ($query) {
+                $query->join('option_values', 'product_option_values.option_value_id', '=', 'option_values.id')
+                    ->orderBy('option_values.position');
+            },
+        ]);
+        $productOptions      = $product->productOptions;
+        $productOptionValues = $product->productOptionValues;
+
         $data = [
-            'product'      => $product,
-            'sku'          => (new SkuListItem($sku))->jsonSerialize(),
-            'skus'         => SkuListItem::collection($product->skus)->jsonSerialize(),
-            'variants'     => $variables,
-            'attributes'   => $product->groupedAttributes(),
-            'reviews'      => $reviews,
-            'reviewed'     => ReviewRepo::productReviewed($customerID, $product->id),
-            'related'      => $product->relationProducts,
-            'bundle_items' => ProductRepo::getInstance()->getBundleItems($product),
+            'product'             => $product,
+            'sku'                 => (new SkuListItem($sku))->jsonSerialize(),
+            'skus'                => SkuListItem::collection($product->skus)->jsonSerialize(),
+            'variants'            => $variables,
+            'attributes'          => $product->groupedAttributes(),
+            'reviews'             => $reviews,
+            'reviewed'            => ReviewRepo::productReviewed($customerID, $product->id),
+            'related'             => $product->relationProducts,
+            'bundle_items'        => ProductRepo::getInstance()->getBundleItems($product),
+            'productOptions'      => $productOptions,
+            'productOptionValues' => $productOptionValues,
         ];
 
         return inno_view('products.show', $data);

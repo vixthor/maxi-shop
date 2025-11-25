@@ -8,7 +8,13 @@
           <div class="variant-values">
             @foreach ($variant['values'] as $vk => $value)
               <div class="variant-value-name" data-variant="{{ $key }}" data-value="{{ $vk }}">
-                {{ $value['name'][front_locale_code()] ?? ($value['name'][setting_locale_code()] ?? '-') }}</div>
+                @if(isset($value['image']) && !empty($value['image']))
+                  <div class="variant-image-container">
+                    <img src="{{ image_resize($value['image'], 30, 30) }}" alt="{{ $value['name'][front_locale_code()] ?? ($value['name'][setting_locale_code()] ?? '-') }}" class="variant-value-image">
+                  </div>
+                @endif
+                <span class="variant-text">{{ $value['name'][front_locale_code()] ?? ($value['name'][setting_locale_code()] ?? '-') }}</span>
+              </div>
             @endforeach
         </div>
       </div>
@@ -64,6 +70,11 @@
         $('.product-price .price').text(masterSku.price_format);
         $('.product-price .old-price').text(masterSku.origin_price_format);
         $('.product-quantity').data('sku-id', masterSku.id)
+        
+        // Update option component base price and recalculate total price
+        if (typeof window.updateBasePrice === 'function') {
+          window.updateBasePrice(masterSku.price);
+        }
 
         if (masterSku.origin_image_url) {
           $('.main-product-img img').attr('src', masterSku.origin_image_url);

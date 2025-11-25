@@ -18,6 +18,7 @@ use InnoShop\Common\Handlers\TranslationHandler;
 use InnoShop\Common\Models\Category;
 use InnoShop\Common\Models\Product;
 use InnoShop\Common\Repositories\Product\BundleRepo;
+use InnoShop\Common\Repositories\Product\OptionValueRepo;
 use InnoShop\Common\Repositories\Product\RelationRepo;
 use InnoShop\Common\Repositories\Product\VariantRepo;
 use Throwable;
@@ -392,6 +393,8 @@ class ProductRepo extends BaseRepo
     }
 
     /**
+     * Copy product and related data
+     *
      * @param  Product  $product
      * @return mixed
      */
@@ -404,11 +407,15 @@ class ProductRepo extends BaseRepo
             'productAttributes',
             'relations',
             'bundles',
-            'videos',
+            'productOptions',
+            'productOptionValues',
         ]);
         $copy = $product->replicate();
 
         $copy->slug .= '-'.rand(0, 99999);
+        if ($copy->spu_code) {
+            $copy->spu_code .= '-'.rand(0, 99999);
+        }
         $copy->push();
 
         foreach ($product->getRelations() as $relation => $entries) {
@@ -422,6 +429,10 @@ class ProductRepo extends BaseRepo
                     continue;
                 } elseif ($relation == 'bundles') {
                     continue;
+                } elseif ($relation == 'productOptions') {
+                    $newEntry->product_id = $copy->id;
+                } elseif ($relation == 'productOptionValues') {
+                    $newEntry->product_id = $copy->id;
                 }
                 if ($newEntry->push()) {
                     $copy->{$relation}()->save($newEntry);
@@ -474,6 +485,11 @@ class ProductRepo extends BaseRepo
 
             if (isset($data['bundles'])) {
                 BundleRepo::getInstance()->handleBundles($product, $data['bundles'] ?? []);
+            }
+
+            // Handle product option configuration
+            if (isset($data['product_options'])) {
+                OptionValueRepo::getInstance()->createProductOptionValues($product->id, $data['product_options']);
             }
 
             $skus = $this->handleSkus($data['skus'] ?? []);
@@ -547,6 +563,11 @@ class ProductRepo extends BaseRepo
                 BundleRepo::getInstance()->handleBundles($product, $data['bundles']);
             }
 
+            // Handle product option configuration
+            if (isset($data['product_options'])) {
+                OptionValueRepo::getInstance()->createProductOptionValues($product->id, $data['product_options']);
+            }
+
             DB::commit();
 
             return $product;
@@ -562,9 +583,9 @@ class ProductRepo extends BaseRepo
      */
     public function handleProductData($data): array
     {
-        $variables = $data['variables'] ?? ($data['variants'] ?? []);
-        if (is_string($variables)) {
-            $variables = json_decode($variables, true);
+        $images = $data['images'] ?? null;
+        if (is_string($images)) {
+            $images = json_decode($images, true);
         }
 
         $video = $data['video'] ?? null;
@@ -572,12 +593,28 @@ class ProductRepo extends BaseRepo
             $video = json_decode($video, true);
         }
 
+        $variables = $data['variables'] ?? ($data['variants'] ?? []);
+        if (is_string($variables)) {
+            $variables = json_decode($variables, true);
+        }
+
+        $slug = $data['slug'] ?? null;
+        if (is_string($slug) && empty($slug)) {
+            $slug = null;
+        }
+
+        $spuCode = $data['spu_code'] ?? null;
+        if (is_string($spuCode) && empty($spuCode)) {
+            $spuCode = null;
+        }
+
         return [
             'type'         => $data['type'] ?? Product::TYPE_NORMAL,
-            'spu_code'     => $data['spu_code'] ?? null,
-            'slug'         => $data['slug'] ?? null,
+            'spu_code'     => $spuCode,
+            'slug'         => $slug,
             'brand_id'     => $data['brand_id'] ?? 0,
-            'images'       => $data['images'] ?? [],
+            'images'       => $images,
+            'hover_image'  => $data['hover_image'] ?? '',
             'video'        => $video,
             'tax_class_id' => $data['tax_class_id'] ?? 0,
             'variables'    => $variables,
@@ -705,118 +742,18 @@ class ProductRepo extends BaseRepo
 
         $filters = array_merge($this->filters, $filters);
 
-        $categoryId = $filters['category_id'] ?? 0;
-        if ($categoryId) {
-            $builder->whereHas('categories', function (Builder $query) use ($categoryId) {
-                $query->where('category_id', $categoryId);
-            });
-        }
+        // Use ProductQueryBuilder to handle filtering logic
+        $queryBuilder = new \InnoShop\Common\Services\ProductQueryBuilder;
 
-        $categorySlug = $filters['category_slug'] ?? '';
-        if ($categorySlug) {
-            $category = Category::query()->where('slug', $categorySlug)->first();
-            if ($category) {
-                $categories = CategoryRepo::getInstance()->builder(['parent_id' => $category->id])->get();
-
-                $filters['category_ids']   = $categories->pluck('id');
-                $filters['category_ids'][] = $category->id;
-            }
-        }
-
-        $categoryIds = $filters['category_ids'] ?? [];
-        if ($categoryIds instanceof Collection) {
-            $categoryIds = $categoryIds->toArray();
-        }
-        $categoryIds = array_unique($categoryIds);
-        if ($categoryIds) {
-            $builder->whereHas('categories', function (Builder $query) use ($categoryIds) {
-                $query->whereIn('category_id', $categoryIds);
-            });
-        }
-
-        $attr = $filters['attr'] ?? [];
-        if ($attr) {
-            $attributes = parse_attr_filters($attr);
-            foreach ($attributes as $attribute) {
-                $builder->whereHas('productAttributes', function ($query) use ($attribute) {
-                    $query->where('attribute_id', $attribute['attr'])
-                        ->whereIn('attribute_value_id', $attribute['value']);
-                });
-            }
-        }
-
-        $attributeValueIds = parse_int_filters($filters['attribute_value_ids'] ?? []);
-        if ($attributeValueIds) {
-            $builder->whereHas('productAttributes', function (Builder $query) use ($attributeValueIds) {
-                $query->whereIn('attribute_value_id', $attributeValueIds);
-            });
-        }
-
-        $keyword = $filters['keyword'] ?? '';
-        if ($keyword) {
-            $builder->whereHas('translation', function (Builder $query) use ($keyword) {
-                $query->where('name', 'like', "%$keyword%");
-            })->orWhereHas('skus', function (Builder $query) use ($keyword) {
-                $query->where('code', 'like', "%$keyword%");
-            });
-        }
-
-        $brandID = $filters['brand_id'] ?? 0;
-        if ($brandID) {
-            $builder->where('brand_id', $brandID);
-        }
-
-        $slug = $filters['slug'] ?? '';
-        if ($slug) {
-            $builder->where('slug', $slug);
-        }
-
-        $productIDs = $filters['product_ids'] ?? [];
-        if ($productIDs) {
-            $builder->whereIn('products.id', $productIDs);
-        }
-
-        if (isset($filters['active'])) {
-            $builder->where('products.active', (bool) $filters['active']);
-        }
-
-        $createdStart = $filters['created_at_start'] ?? '';
-        if ($createdStart) {
-            $builder->where('created_at', '>', $createdStart);
-        }
-
-        $createdEnd = $filters['created_at_end'] ?? '';
-        if ($createdEnd) {
-            $builder->where('created_at', '<', $createdEnd);
-        }
-
-        $priceStart = $filters['price_start'] ?? '';
-        if ($priceStart) {
-            $builder->whereHas('masterSku', function (Builder $query) use ($priceStart) {
-                $query->where('price', '>', $priceStart);
-            });
-        }
-
-        $priceEnd = $filters['price_end'] ?? '';
-        if ($priceEnd) {
-            $builder->whereHas('masterSku', function (Builder $query) use ($priceEnd) {
-                $query->where('price', '<', $priceEnd);
-            });
-        }
-
-        $skuCode = $filters['sku_code'] ?? '';
-        if ($skuCode) {
-            $builder->whereHas('skus', function (Builder $query) use ($skuCode) {
-                $query->where('code', 'like', "%$skuCode%");
-            });
-        }
-
-        $skuId = $filters['sku_id'] ?? '';
-        if ($skuId) {
-            $builder->whereHas('skus', function (Builder $query) use ($skuId) {
-                $query->where('id', $skuId);
-            });
-        }
+        $builder = $queryBuilder->applyCategoryFilters($builder, $filters);
+        $builder = $queryBuilder->applyAttributeFilters($builder, $filters);
+        $builder = $queryBuilder->applyBrandFilters($builder, $filters);
+        $builder = $queryBuilder->applyPriceFilters($builder, $filters);
+        $builder = $queryBuilder->applyStockFilters($builder, $filters);
+        $builder = $queryBuilder->applySearchFilters($builder, $filters);
+        $builder = $queryBuilder->applySkuFilters($builder, $filters);
+        $builder = $queryBuilder->applyBasicFilters($builder, $filters);
+        $builder = $queryBuilder->applyDateFilters($builder, $filters);
 
         return fire_hook_filter('repo.product.builder', $builder);
     }

@@ -1,5 +1,5 @@
 export default {
-  // 通过正则表达式匹配url中的参数，如果匹配到了，就替换掉原来的参数，如果没有匹配到，就添加参数
+  // Update URL parameter using regex, replace if exists, add if not
   updateQueryStringParameter(uri, key, value) {
     var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
     var separator = uri.indexOf('?') !== -1 ? "&" : "?";
@@ -10,14 +10,14 @@ export default {
     }
   },
 
-  // 通过正则表达式匹配url中的参数，如果匹配到了，就删除掉原来的参数
+  // Remove URL parameters using regex
   removeURLParameters(url, ...parameters) {
     const parsed = new URL(url);
     parameters.forEach(e => parsed.searchParams.delete(e))
     return parsed.toString()
   },
 
-  // 获取url中的参数, url 传入的url，name 要获取的参数名
+  // Get URL parameter by name
   getQueryString(name, url = window.location.href) {
     var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
     var r = url.split('?')[1] ? url.split('?')[1].match(reg) : null;
@@ -25,13 +25,24 @@ export default {
     return null;
   },
 
-  addCart({skuId, quantity = 1, isBuyNow = false}, event, callback) {
-    const base = document.querySelector('base').href;
+  // Add product to cart
+  addCart({skuId, quantity = 1, isBuyNow = false, options = {}}, event, callback) {
     const $btn = $(event);
     $btn.addClass('disabled').prepend('<span class="spinner-border spinner-border-sm me-1"></span>');
     $(document).find('.tooltip').remove();
 
-    axios.post(urls.cart_add, {sku_id: skuId, quantity, buy_now: isBuyNow}).then((res) => {
+    const requestData = {
+      sku_id: skuId, 
+      quantity, 
+      buy_now: isBuyNow
+    };
+
+    // Add options to request if available
+    if (options && Object.keys(options).length > 0) {
+      requestData.options = options;
+    }
+
+    axios.post(urls.cart_add, requestData).then((res) => {
       if (!isBuyNow) {
         layer.msg(res.message)
       }
@@ -46,6 +57,7 @@ export default {
     })
   },
 
+  // Add/remove wishlist
   addWishlist(id, isWishlist, event, callback) {
     if (!config.isLogin) {
       this.openLogin()
@@ -82,12 +94,14 @@ export default {
     }
   },
 
+  // Get cart information
   getCarts() {
     axios.get(urls.cart_mini).then((res) => {
       $('.header-cart-icon .icon-quantity').text(res.data.total_format)
     })
   },
 
+  // Convert serialized string to object
   serializedToObj(serializedStr) {
     const obj = {};
     const pairs = serializedStr.split('&');
@@ -106,54 +120,28 @@ export default {
     return obj;
   },
 
+  // Show message notification
   msg(params = {}, callback = null) {
     let msg = typeof params === 'string' ? params : params.msg || '';
     let time = params.time || 2000;
     layer.msg(msg, {time}, callback);
   },
 
+  // Show alert notification
   alert(params = {}, callback = null) {
-    let top = 40;
-    let id = Math.random().toString(36).substring(7);
     let msg = typeof params === 'string' ? params : params.msg || '';
     let type = params.type || 'success';
-    let icon = 'bi-check-circle-fill';
-    if (type != 'success') {
-      icon = 'bi-exclamation-circle-fill';
-    }
-
-    $('.is-alert').each(function () {
-      top += $(this).outerHeight() + 10;
-    });
-
-    let html = '';
-    html += ` <div id="alert-${id}" class="alert alert-${type} alert-dismissible is-alert position-fixed me-2 z-3">`;
-    html += `   <i class="bi ${icon}"></i>`;
-    html += '   ' + msg;
-    html += '   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-    html += ' </div>';
-
-    $('body').append(html);
-
-    $('#alert-' + id).css({right: '-100%',top}).animate({right: '0'}, 200);
-
-    window.setTimeout(function () {
-      $('#alert-' + id).animate({right: '-100%'}, 200, function () {
-        $(this).remove();
-        top = 40;
-        $('.is-alert').each(function () {
-          $(this).animate({top}, 100);
-          top += $(this).outerHeight() + 10;
-        });
-
-        if (callback !== null) {
-          callback();
-        }
-      });
-    }, 5000);
+    let icon = type === 'success' ? 1 : 2;
+    
+    layer.msg(msg, {
+      icon: icon,
+      shade: 0.3,
+      shadeClose: true,
+      time: 5000
+    }, callback);
   },
 
-  // bootstrap 表单验证, js 验证
+  // Bootstrap form validation
   validateAndSubmitForm(form, callback) {
     $(document).on('click', `${form} .form-submit`, function(event) {
       if ($(form)[0].checkValidity() === false) {
@@ -175,6 +163,7 @@ export default {
     })
   },
 
+  // Open login modal
   openLogin() {
     var area = window.innerWidth < 768 ? '94%' : '500px';
 
@@ -191,6 +180,7 @@ export default {
     });
   },
 
+  // Get base URL
   getBase() {
     let url = document.querySelector('base').href;
     if (url.endsWith('/')) {
@@ -199,10 +189,43 @@ export default {
     return url;
   },
 
+  // Currency format function
+  // Currency formatting with global config
+  formatCurrency(amount, currencyConfig = null) {
+    // Use global config if no specific config provided
+    const currency = currencyConfig || (config && config.currency) || {
+      symbol_left: '$',
+      symbol_right: '',
+      decimal_place: 2,
+      rate: 1
+    };
+    
+    const price = parseFloat(amount) * currency.rate;
+    const formattedAmount = price.toFixed(currency.decimal_place);
+    
+    let result = '';
+    if (currency.symbol_left) {
+      result += currency.symbol_left;
+    }
+    result += formattedAmount;
+    if (currency.symbol_right) {
+      result += ' ' + currency.symbol_right;
+    }
+    
+    return result;
+  },
+
+  // Legacy currency format function (kept for backward compatibility)
+  currencyFormat(amount, symbol = '$', decimals = 2) {
+    const num = parseFloat(amount) || 0;
+    return symbol + num.toFixed(decimals);
+  },
+
+  // Set app content minimum height
   setAppContentMinHeight(){
-  let appHeaderHeight=$('#appHeader').outerHeight();
-  let appFooterHeight=$('#appFooter').outerHeight(true);
-  let windowHeight=$(window).outerHeight();
-  $('#appContent').css('min-height', (windowHeight-appHeaderHeight-appFooterHeight-48)+'px');
-}
+    let appHeaderHeight = $('#appHeader').outerHeight();
+    let appFooterHeight = $('#appFooter').outerHeight(true);
+    let windowHeight = $(window).outerHeight();
+    $('#appContent').css('min-height', (windowHeight - appHeaderHeight - appFooterHeight - 48) + 'px');
+  }
 };

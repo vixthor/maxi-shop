@@ -11,7 +11,7 @@
 
   <div class="card-body py-0">
     <div class="variant-wrap" v-if="variants.length">
-      <input type="hidden" name="variants" :value="JSON.stringify(variants)"><br>
+      <input type="hidden" name="variants" :value="JSON.stringify(variants)">
       <input type="hidden" name="skus" :value="JSON.stringify(skus)">
       <draggable
         v-model="variants"
@@ -22,16 +22,48 @@
         <template #item="{element: variant, index}">
           <div class="variant-item">
             <div class="variant-data" v-if="!variant.variantFormShow">
-              <div class="left">
-                <div class="icon drag-variants-handle"><i class="bi bi-grip-vertical"></i></div>
-                <div class="info">
+              <div class="variant-header d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center">
+                  <div class="icon drag-variants-handle me-2"><i class="bi bi-grip-vertical"></i></div>
                   <div class="title">@{{ variant.name[defaultLocale] || getFirstAvailableLocaleValue(variant.name) }}</div>
-                  <div class="values">
-                    <span v-for="(value, i) in variant.values" :key="i">@{{ value.name[defaultLocale] || getFirstAvailableLocaleValue(value.name) }}</span>
+                  <label class="form-check-label ms-3">
+                    <input type="checkbox" class="form-check-input" v-model="variant.isImage" @change="toggleVariantImage(index)">
+                    {{ __('panel/product.is_image_variant') }}
+                  </label>
+                </div>
+                <div class="action-buttons">
+                  <button type="button" class="btn btn-outline-primary btn-sm" @click="openVariantDialog(index, null)">{{ __('panel/common.edit') }}</button>
+                  <button type="button" class="btn btn-outline-danger btn-sm ms-2" @click="deleteVariant(index)">{{ __('panel/common.delete') }}</button>
+                </div>
+              </div>
+              <div class="variant-values">
+                <div class="variant-values-container">
+                  <div class="variant-values-list d-flex flex-wrap">
+                    <div v-for="(value, valueIndex) in variant.values" :key="valueIndex" 
+                         class="variant-value-item me-2 mb-2 position-relative" 
+                         @dblclick="openVariantDialog(index, valueIndex)">
+                      <div class="variant-value-delete-btn" @click="deleteVariantValue(index, valueIndex)">
+                        <i class="bi bi-x-circle-fill"></i>
+                      </div>
+                      <div v-if="variant.isImage" class="variant-image-container open-file-manager" 
+                           @click="selectVariantValueImage(index, valueIndex)">
+                        <img v-if="value.image" :src="thumbnail(value.image)" class="variant-value-image">
+                        <i v-else class="bi bi-image variant-placeholder-icon"></i>
+                      </div>
+                      <span class="variant-value-name">@{{ value.name[defaultLocale] || getFirstAvailableLocaleValue(value.name) }}</span>
+                    </div>
+                    <div class="variant-value-item me-2 mb-2 add-value-btn" @click="openVariantDialog(index, -1)">
+                      <i class="bi bi-plus-circle"></i>
+                    </div>
+                  </div>
+                  <div class="mt-2">
+                    <small class="text-muted">
+                      <i class="bi bi-info-circle me-1"></i>
+                      {{ __('panel/product.variant_value_edit_tip') }}
+                    </small>
                   </div>
                 </div>
               </div>
-              <div class="right"><button type="button" class="btn btn-outline-secondary btn-sm" @click="variant.variantFormShow = true">{{ __('panel/common.edit') }}</button></div>
             </div>
             <div class="add-variant-form" v-else>
               <div class="mb-3 add-variant-title">
@@ -78,69 +110,123 @@
         </template>
       </draggable>
     </div>
-    <div :class="['text-primary add-variant', !variants.length ? 'no-variants' : '']" v-if="variants.length < 3">
-      <div class="d-inline-block cursor-pointer" @click="addVariant"><i class="bi bi-plus-square me-1"></i> {{ __('panel/product.add_variant') }}</div>
+    <div :class="['text-primary add-variant', !variants.length ? 'no-variants' : '']">
+      <div class="d-inline-block cursor-pointer" @click="openVariantDialog(-1, null)"><i class="bi bi-plus-square me-1"></i> {{ __('panel/product.add_variant') }}</div>
     </div>
     <div class="variant-skus-wrap" v-if="smallVariants.length">
+      <div class="batch-settings-panel mb-3">
+        <div class="card shadow-sm" style="border: none;">
+          <div class="card-body py-3">
+            <div class="mb-2" v-if="variants.length > 0">
+              <label class="form-label small fw-bold mb-2">{{ __('panel/product.sku_batch_setting') }}</label>
+              <div class="variant-selector-container">
+                <div class="row g-2 mb-2" v-for="(variant, vIndex) in variants" :key="vIndex">
+                  <div class="col-md-2">
+                    <label class="form-label small mb-1">@{{ getFirstAvailableLocaleValue(variant.name) }}</label>
+                  </div>
+                  <div class="col-md-10">
+                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                      <div class="form-check me-2" v-for="(value, valueIndex) in variant.values" :key="valueIndex">
+                        <input class="form-check-input" type="checkbox" 
+                               :id="`variant_${vIndex}_${valueIndex}`"
+                               v-model="batchData.selectedVariants[vIndex]"
+                               :value="valueIndex">
+                        <label class="form-check-label" :for="`variant_${vIndex}_${valueIndex}`">
+                          @{{ getFirstAvailableLocaleValue(value.name) }}
+                        </label>
+                      </div>
+                      <button type="button" class="btn btn-outline-primary btn-sm ms-2" 
+                              @click="selectAllVariantValues(vIndex)">
+                        {{ __('panel/product.select_all') }}
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" 
+                              @click="clearVariantSelection(vIndex)">
+                        {{ __('panel/product.clear') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row g-2">
+              <!-- SKU编码前缀 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">SKU {{ __('panel/product.bulk_fill') }}</label>
+                <input type="text" class="form-control form-control-sm" v-model="batchData.skuPrefix" 
+                       placeholder="{{ __('panel/product.bulk_fill_sku') }}" style="height: 31px;">
+              </div>
+              
+              <!-- 价格 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">{{ __('panel/product.price') }}</label>
+                <input type="number" class="form-control form-control-sm" v-model="batchData.price" 
+                       placeholder="{{ __('panel/product.bulk_fill_price') }}" min="0" @input="validateBatchPrice" style="height: 31px;">
+              </div>
+              
+              <!-- 原价 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">{{ __('panel/product.origin_price') }}</label>
+                <input type="number" class="form-control form-control-sm" v-model="batchData.originPrice" 
+                       placeholder="{{ __('panel/product.bulk_fill_origin_price') }}" min="0" @input="validateBatchOriginPrice" style="height: 31px;">
+              </div>
+              
+              <!-- 型号 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">{{ __('panel/product.model') }}</label>
+                <input type="text" class="form-control form-control-sm" v-model="batchData.model" 
+                       placeholder="{{ __('panel/product.bulk_fill_model') }}" style="height: 31px;">
+              </div>
+              
+              <!-- 数量 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">{{ __('panel/product.quantity') }}</label>
+                <input type="number" class="form-control form-control-sm" v-model="batchData.quantity" 
+                       placeholder="{{ __('panel/product.bulk_fill_quantity') }}" min="0" @input="validateBatchQuantity" style="height: 31px;">
+              </div>
+              
+              <!-- SKU图片 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1">{{ __('panel/product.sku_image') }}</label>
+                <div class="d-flex align-items-center" style="height: 31px;">
+                  <input type="hidden" v-model="batchData.image">
+                  <div class="image-preview me-2" v-if="batchData.image" style="width: 25px; height: 25px; border-radius: 3px; overflow: hidden; border: 1px solid #ddd;">
+                    <img :src="batchData.image" style="width: 100%; height: 100%; object-fit: cover;">
+                  </div>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" @click="selectBatchImage" style="font-size: 11px; padding: 2px 8px;">
+                    <i class="bi bi-image me-1"></i>{{ __('panel/product.select_image') }}
+                  </button>
+                  <button type="button" class="btn btn-outline-danger btn-sm ms-1" @click="clearBatchImage" v-if="batchData.image" style="font-size: 11px; padding: 2px 6px;">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 批量设置按钮 -->
+              <div class="col-md-2">
+                <label class="form-label small mb-1" style="visibility: hidden;">占位</label>
+                <button type="button" class="btn btn-success w-100 fw-bold" @click="batchApplySelected" style="height: 31px; font-size: 12px;">
+                  <i class="bi bi-lightning-charge-fill me-1"></i>{{ __('panel/product.bulk_fill') }}
+                </button>
+              </div>
+              
+              @hookinsert('panel.product.edit.sku.batch.input.item.after')
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- SKU数据表格 -->
       <div class="variant-skus-table table-responsive">
-        <table class="table align-middle">
-          <thead>
+        <table class="table align-middle table-bordered">
+          <thead class="table-light">
             <tr>
-              <th style="min-width: 220px">
-                  <div class="batch-input-item mb-2">
-                      {{ __('panel/product.bulk_fill') }}
-                  </div>
-                  {{ __('panel/product.variant') }}
-              </th>
-              <th>
-                <div class="batch-input-item mb-2">
-                  <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" v-model="batchData.skuPrefix" placeholder="{{ __('panel/product.bulk_fill_sku') }}">
-                    <button class="btn btn-outline-primary" type="button" @click="batchFillSkuCode">{{ __('panel/product.bulk_fill_apply') }}</button>
-                  </div>
-                </div>
-                SKU Code
-              </th>
-              <th>
-                <div class="batch-input-item mb-2">
-                  <div class="input-group input-group-sm">
-                    <input type="number" class="form-control" v-model="batchData.price" placeholder="{{ __('panel/product.bulk_fill_price') }}"
-                      min="0" @input="validateBatchPrice">
-                    <button class="btn btn-outline-primary" type="button" @click="batchFillColumn('price')">{{ __('panel/product.bulk_fill_apply') }}</button>
-                  </div>
-                </div>
-                {{ __('panel/product.price') }}
-              </th>
-              <th>
-                <div class="batch-input-item mb-2">
-                  <div class="input-group input-group-sm">
-                    <input type="number" class="form-control" v-model="batchData.originPrice" placeholder="{{ __('panel/product.bulk_fill_origin_price') }}"
-                      min="0" @input="validateBatchOriginPrice">
-                    <button class="btn btn-outline-primary" type="button" @click="batchFillColumn('originPrice')">{{ __('panel/product.bulk_fill_apply') }}</button>
-                  </div>
-                </div>
-                {{ __('panel/product.origin_price') }}
-              </th>
-              <th>
-                <div class="batch-input-item mb-2">
-                  <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" v-model="batchData.model" placeholder="{{ __('panel/product.bulk_fill_model') }}">
-                    <button class="btn btn-outline-primary" type="button" @click="batchFillColumn('model')">{{ __('panel/product.bulk_fill_apply') }}</button>
-                  </div>
-                </div>
-                {{ __('panel/product.model') }}
-              </th>
-              <th>
-                <div class="batch-input-item mb-2">
-                  <div class="input-group input-group-sm">
-                    <input type="number" class="form-control" v-model="batchData.quantity" placeholder="{{ __('panel/product.bulk_fill_quantity') }}"
-                      min="0" @input="validateBatchQuantity">
-                    <button class="btn btn-outline-primary" type="button" @click="batchFillColumn('quantity')">{{ __('panel/product.bulk_fill_apply') }}</button>
-                  </div>
-                </div>
-                {{ __('panel/product.quantity') }}
-              </th>
-                @hookinsert('panel.product.edit.sku.batch.input.item.after')
+              <th style="min-width: 220px">{{ __('panel/product.variant') }}</th>
+              <th>SKU Code</th>
+              <th>{{ __('panel/product.price') }}</th>
+              <th>{{ __('panel/product.origin_price') }}</th>
+              <th>{{ __('panel/product.model') }}</th>
+              <th>{{ __('panel/product.quantity') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -196,6 +282,42 @@
     </div>
   </div>
     @hookinsert('panel.product.edit.variant.after')
+
+    <!-- 规格/规格值编辑弹窗 -->
+    <div class="modal fade" id="variantEditModal" tabindex="-1" aria-hidden="true" v-if="dialogVariables.show">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">@{{ dialogVariables.title }}</h5>
+            <button type="button" class="btn-close" @click="closeVariantDialog"></button>
+          </div>
+          <div class="modal-body">
+            <form ref="variantForm">
+              <div class="mb-3">
+                <div v-for="locale in locales" :key="locale.code" class="input-group mb-2">
+                  <div class="input-group-text">
+                    <div class="d-flex align-items-center wh-20">
+                      <img :src="'/images/flag/'+ locale.code +'.png'" 
+                           class="img-fluid" 
+                           :alt="locale.name">
+                    </div>
+                  </div>
+                  <input type="text" class="form-control" 
+                         v-model="dialogVariables.form.name[locale.code]" 
+                         :placeholder="'{{ __('panel/product.name') }}'"
+                         :aria-label="locale.name"
+                         :data-locale="locale.code">
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeVariantDialog">{{ __('panel/common.cancel') }}</button>
+            <button type="button" class="btn btn-primary" @click="saveVariantDialog">{{ __('panel/common.save') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
 </div>
 
 @push('footer')
@@ -220,6 +342,7 @@
     },
 
     setup() {
+
       // Core state variables
       const instance = getCurrentInstance();
       const locales = $locales;
@@ -255,7 +378,20 @@
         price: '',
         originPrice: '',
         model: '',
-        quantity: ''
+        quantity: '',
+        image: '',
+        selectedVariants: [] // 存储每个规格的选中值索引数组
+      });
+
+      // Dialog variables for variant/value editing
+      const dialogVariables = ref({
+        show: false,
+        variantIndex: null,
+        variantValueIndex: null,
+        title: '',
+        form: {
+          name: {}
+        }
       });
 
       // Watch for changes in main variant key or variants array
@@ -349,7 +485,7 @@
 
       // Add a new value to a variant
       const addVariantValue = (index) => {
-        variants.value[index].values.push({name: localesFill('')});
+        variants.value[index].values.push({name: localesFill(''), error: false, image: ''});
       }
 
       // Add a new variant
@@ -358,13 +494,20 @@
           name: localesFill(''),
           error: false,
           variantFormShow: true,
-          values: [{name: localesFill(''), error: false}],
+          isImage: false,
+          values: [{name: localesFill(''), error: false, image: ''}],
         });
+        
+        // 更新规格选择器数据结构
+        batchData.value.selectedVariants.push([]);
       }
 
       // Delete a variant and update main variant key
       const deleteVariant = (index) => {
         variants.value.splice(index, 1);
+        
+        // 同步删除规格选择器对应的数据
+        batchData.value.selectedVariants.splice(index, 1);
 
         if (index < mainVariantKey.value) {
           mainVariantKey.value--;
@@ -489,6 +632,9 @@
         }
 
         skus.value = sku;
+        
+        // 初始化规格选择器数据结构
+        initializeVariantSelectors();
       }
 
       // Modify SKU values in batch or individually
@@ -514,8 +660,8 @@
       // Open file manager to upload variant image
       const upVariantImage = (init_index, index) => {
         inno.fileManagerIframe((file) => {
-          if (file.url) {
-            skus.value[index].image = file.url;
+          if (file.path) {
+            skus.value[index].image = file.path;
           }
         }, {
           type: 'image',
@@ -706,6 +852,265 @@
         layer.msg('Batch fill completed', {icon: 1});
       };
 
+      // 初始化规格选择器数据结构
+      const initializeVariantSelectors = () => {
+        // 初始化批量设置的规格选择器
+        batchData.value.selectedVariants = variants.value.map(() => []);
+      };
+      
+      // 规格选择器相关方法
+      const selectAllVariantValues = (variantIndex) => {
+        if (!batchData.value.selectedVariants[variantIndex]) {
+          batchData.value.selectedVariants[variantIndex] = [];
+        }
+        const allValues = variants.value[variantIndex].values.map((_, index) => index);
+        batchData.value.selectedVariants[variantIndex] = [...allValues];
+      };
+      
+      const clearVariantSelection = (variantIndex) => {
+        if (batchData.value.selectedVariants[variantIndex]) {
+          batchData.value.selectedVariants[variantIndex] = [];
+        }
+      };
+      
+      // 检查SKU是否匹配选中的规格组合
+      const isSkuMatchingSelection = (sku) => {
+        if (!batchData.value.selectedVariants.length) return true;
+        
+        return batchData.value.selectedVariants.every((selectedValues, variantIndex) => {
+          if (!selectedValues || selectedValues.length === 0) return true;
+          return selectedValues.includes(sku.variants[variantIndex]);
+        });
+      };
+      
+      // 获取匹配选中规格的SKU列表
+      const getMatchingSKUs = () => {
+        return skus.value.filter(isSkuMatchingSelection);
+      };
+      
+      // 批量设置选中的SKU
+      const batchApplySelected = () => {
+        const matchingSKUs = getMatchingSKUs();
+        let appliedCount = 0;
+        
+        if (matchingSKUs.length === 0) {
+          layer.msg('没有匹配的SKU，请检查规格选择', {icon: 2});
+          return;
+        }
+        
+        // 批量设置SKU编码
+        if (batchData.value.skuPrefix) {
+          matchingSKUs.forEach((sku, index) => {
+            const suffix = String(index + 1).padStart(2, '0');
+            sku.code = `${batchData.value.skuPrefix}-${suffix}`;
+          });
+          appliedCount++;
+        }
+        
+        // 批量设置价格
+        if (batchData.value.price) {
+          matchingSKUs.forEach(sku => {
+            sku.price = batchData.value.price;
+          });
+          appliedCount++;
+        }
+        
+        // 批量设置原价
+        if (batchData.value.originPrice) {
+          matchingSKUs.forEach(sku => {
+            sku.origin_price = batchData.value.originPrice;
+          });
+          appliedCount++;
+        }
+        
+        // 批量设置型号
+        if (batchData.value.model) {
+          matchingSKUs.forEach(sku => {
+            sku.model = batchData.value.model;
+          });
+          appliedCount++;
+        }
+        
+        // 批量设置数量
+        if (batchData.value.quantity) {
+          matchingSKUs.forEach(sku => {
+            sku.quantity = batchData.value.quantity;
+          });
+          appliedCount++;
+        }
+        
+        // 批量设置图片
+        if (batchData.value.image) {
+          matchingSKUs.forEach(sku => {
+            sku.image = batchData.value.image;
+          });
+          appliedCount++;
+        }
+        
+        if (appliedCount === 0) {
+          layer.msg('请至少填写一个字段进行批量设置', {icon: 2});
+          return;
+        }
+        
+        layer.msg(`批量设置完成，已应用 ${appliedCount} 个字段到 ${matchingSKUs.length} 个SKU`, {icon: 1});
+      };
+      
+
+      
+      // 选择批量设置图片
+      const selectBatchImage = () => {
+        inno.fileManagerIframe((file) => {
+          if (file.path) {
+            batchData.value.image = file.path;
+          }
+        }, {
+          type: 'image',
+          multiple: false
+        });
+      };
+      
+      // 清除批量设置图片
+      const clearBatchImage = () => {
+        batchData.value.image = '';
+      };
+      
+
+      
+
+
+      // Open variant/value edit dialog
+      const openVariantDialog = (variantIndex, valueIndex = null) => {
+        dialogVariables.value.variantIndex = variantIndex;
+        dialogVariables.value.variantValueIndex = valueIndex;
+        
+        let name = {};
+        let title = '';
+        
+        // Initialize form data and title based on what we're editing
+        if (variantIndex === -1) {
+          // Creating new variant
+          name = localesFill('');
+          title = '{{ __('panel/product.add_variant') }}';
+        } else if (valueIndex === null) {
+          // Editing existing variant name
+          if (variants.value[variantIndex] && variants.value[variantIndex].name) {
+            name = variants.value[variantIndex].name;
+          } else {
+            name = localesFill('');
+          }
+          title = '{{ __('panel/product.edit_variant') }}';
+        } else if (valueIndex === -1) {
+          // Creating new variant value
+          name = localesFill('');
+          title = '{{ __('panel/product.add_variant_value') }}';
+        } else {
+          // Editing existing variant value
+          if (variants.value[variantIndex] && variants.value[variantIndex].values[valueIndex] && variants.value[variantIndex].values[valueIndex].name) {
+            name = variants.value[variantIndex].values[valueIndex].name;
+          } else {
+            name = localesFill('');
+          }
+          title = '{{ __('panel/product.edit_variant_value') }}';
+        }
+        
+        dialogVariables.value.form.name = JSON.parse(JSON.stringify(name));
+        dialogVariables.value.title = title;
+        dialogVariables.value.show = true;
+        
+        // Show Bootstrap modal
+        nextTick(() => {
+          const modal = new bootstrap.Modal(document.getElementById('variantEditModal'));
+          modal.show();
+        });
+      };
+
+      // Close variant dialog
+      const closeVariantDialog = () => {
+        dialogVariables.value.show = false;
+        dialogVariables.value.variantIndex = null;
+        dialogVariables.value.variantValueIndex = null;
+        dialogVariables.value.title = '';
+        dialogVariables.value.form.name = {};
+        
+        // Hide Bootstrap modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('variantEditModal'));
+        if (modal) {
+          modal.hide();
+        }
+      };
+
+      // Save variant dialog changes
+      const saveVariantDialog = () => {
+        const name = JSON.parse(JSON.stringify(dialogVariables.value.form.name));
+        const variantIndex = dialogVariables.value.variantIndex;
+        const valueIndex = dialogVariables.value.variantValueIndex;
+        
+        // Validate name is not empty
+        if (isObjectValuesEmpty(name)) {
+          layer.msg('{{ __('panel/common.verify_required') }}', {icon: 2});
+          return;
+        }
+        
+        if (valueIndex !== null) {
+          if (valueIndex === -1) {
+            // Creating new variant value
+            variants.value[variantIndex].values.push({name, image: ''});
+          } else {
+            // Update existing variant value
+            variants.value[variantIndex].values[valueIndex].name = name;
+          }
+        } else {
+          if (variantIndex === -1) {
+            // Creating new variant
+            variants.value.push({name, values: [], isImage: false});
+          } else {
+            // Update existing variant
+            variants.value[variantIndex].name = name;
+          }
+        }
+        
+        closeVariantDialog();
+        layer.msg('{{ __('panel/common.saved_success') }}', {icon: 1});
+      };
+
+      // Toggle variant image mode
+      const toggleVariantImage = (variantIndex) => {
+        const variant = variants.value[variantIndex];
+        if (!variant.isImage) {
+          // Clear all images when disabling image mode
+          variant.values.forEach(value => {
+            value.image = '';
+          });
+        } else {
+          // Initialize image property for all values
+          variant.values.forEach(value => {
+            if (!value.image) {
+              value.image = '';
+            }
+          });
+        }
+      };
+
+      // Select image for variant value
+      const selectVariantValueImage = (variantIndex, valueIndex) => {
+        inno.fileManagerIframe((file) => {
+          if (file.path) {
+            variants.value[variantIndex].values[valueIndex].image = file.path;
+          }
+        }, {
+          type: 'image',
+          multiple: false
+        });
+      };
+
+      // Delete variant value
+      const deleteVariantValue = (variantIndex, valueIndex) => {
+        if (confirm('{{ __('panel/common.confirm_delete') }}')) {
+          variants.value[variantIndex].values.splice(valueIndex, 1);
+          layer.msg('{{ __('panel/common.deleted_success') }}', {icon: 1});
+        }
+      };
+
       // Expose methods and state to the template
       return {
         skus,
@@ -734,7 +1139,22 @@
         validateBatchQuantity,
         validatePrice,
         validateOriginPrice,
-        validateQuantity
+        validateQuantity,
+        // New dialog and image methods
+        dialogVariables,
+        openVariantDialog,
+        closeVariantDialog,
+        saveVariantDialog,
+        toggleVariantImage,
+        selectVariantValueImage,
+        deleteVariantValue,
+        // 批量设置相关方法
+        initializeVariantSelectors,
+        selectAllVariantValues,
+        clearVariantSelection,
+        batchApplySelected,
+        selectBatchImage,
+        clearBatchImage
       }
     }
   }).mount('#variants-box');

@@ -1,5 +1,6 @@
 <x-panel::form.row :title="$title">
-  <div class="is-up-file" data-type="{{ $type }}">
+  <div class="single-image-upload-wrapper">
+    <div class="is-up-file" data-type="{{ $type }}">
     <div class="img-upload-item bg-light wh-80 rounded border d-flex justify-content-center align-items-center me-2 mb-2 position-relative cursor-pointer overflow-hidden">
       <div class="position-absolute tool-wrap {{ !$value ? 'd-none' : '' }} d-flex top-0 start-0 w-100 bg-primary bg-opacity-75"><div class="show-img w-100 text-center"><i class="bi bi-eye text-white"></i></div><div class="w-100 delete-img text-center"><i class="bi bi-trash text-white"></i></div></div>
       <div class="position-absolute bg-white d-none img-loading"><div class="spinner-border opacity-50"></div></div>
@@ -15,9 +16,12 @@
     </div>
   </div>
   @if ($description)
-    <div class="text-secondary"><small>{!! $description !!}</small></div>
+    <div class="mt-2 text-muted small">
+      <i class="bi bi-info-circle me-1"></i>{!! $description !!}
+    </div>
   @endif
   {{ $slot }}
+  </div>
 </x-panel::form.row>
 
 
@@ -35,7 +39,7 @@
 </div>
 
 <script>
-  $('.is-up-file .img-upload-item').click(function () {
+  $('.single-image-upload-wrapper .is-up-file .img-upload-item').click(function () {
     const _self = $(this);
 
     // 调用文件管理器
@@ -56,7 +60,7 @@
   });
 
   // 删除图片
-  $('.is-up-file .delete-img').on('click', function (e) {
+  $('.single-image-upload-wrapper .is-up-file .delete-img').on('click', function (e) {
     e.stopPropagation();
     let _self = $(this).parent().parent();
     _self.find('input').val('');
@@ -65,7 +69,7 @@
   });
 
   // 预览图片
-  $('.is-up-file .show-img').on('click', function (e) {
+  $('.single-image-upload-wrapper .is-up-file .show-img').on('click', function (e) {
     e.stopPropagation();
     let src = $(this).parent().siblings('.img-info').find('img').data('origin-img');
     let img = '<img src="' + src + '" class="img-fluid">';
