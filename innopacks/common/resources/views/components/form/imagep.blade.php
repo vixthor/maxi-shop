@@ -25,9 +25,9 @@
 
 @pushOnce('footer')
     <div class="modal fade" id="modal-show-img">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
-                <div class="modal-body"></div>
+                <div class="modal-body text-center p-4" style="min-height: 200px; display: flex; align-items: center; justify-content: center;"></div>
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -79,8 +79,13 @@
 
         $('.single-image-pure-upload-wrapper .is-up-file .show-img').on('click', function (e) {
             e.stopPropagation();
-            let src = $(this).parent().siblings('.img-info').find('img').data('origin-img');
-            let img = '<img src="' + src + '" class="img-fluid">';
+            const imgElement = $(this).closest('.img-upload-item').find('.img-info img');
+            let src = imgElement.data('origin-img') || imgElement.attr('src');
+            if (!src) {
+              console.error('Image source not found');
+              return;
+            }
+            let img = '<img src="' + src + '" class="img-fluid" style="max-width: 100%; max-height: 70vh; height: auto; border-radius: 4px;">';
             $('#modal-show-img .modal-body').html(img);
             $('#modal-show-img').modal('show');
         });
@@ -100,10 +105,11 @@
                 .then(function (response) {
                     if (response.success) {
                         const val = response.data.value;
-                        const url = response.data.url;
+                        const url = response.data.url; // Thumbnail for display
+                        const originUrl = response.data.origin_url || response.data.url; // Original image for preview
                         _self.find('input').val(val);
                         _self.find('.tool-wrap').removeClass('d-none');
-                        _self.find('.img-info').html('<img src="' + url + '" class="img-fluid" data-origin-img="' + url + '">');
+                        _self.find('.img-info').html('<img src="' + url + '" class="img-fluid" data-origin-img="' + originUrl + '">');
                     } else {
                         layer.msg(response.message || '上传失败', {icon: 2});
                     }

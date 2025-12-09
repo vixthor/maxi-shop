@@ -412,16 +412,14 @@
   $(document).on('click', '.is-up-file .img-upload-item', function () {
     const _self = $(this);
 
-    // Call file manager
     window.inno.fileManagerIframe((file) => {
-      // Handle selected file
       let val = file.path;
-      let url = file.url;
+      let url = file.url; // Thumbnail for display
+      let originUrl = file.origin_url || file.url; // Original image for preview
       _self.find('input').val(val);
       _self.find('.tool-wrap').removeClass('d-none');
-      _self.find('.img-info').html('<img src="' + url + '" class="img-fluid" data-origin-img="' + url + '">');
+      _self.find('.img-info').html('<img src="' + url + '" class="img-fluid" data-origin-img="' + originUrl + '">');
       
-      // Manually trigger change event
       _self.find('input').trigger('change');
     }, {
       multiple: false,
@@ -448,9 +446,9 @@
       if ($('#modal-show-img').length === 0) {
         $('body').append(`
           <div class="modal fade" id="modal-show-img">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
               <div class="modal-content">
-                <div class="modal-body"></div>
+                <div class="modal-body text-center p-4" style="min-height: 200px; display: flex; align-items: center; justify-content: center;"></div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ panel_trans('options.close') }}</button>
                 </div>
@@ -459,7 +457,8 @@
           </div>
         `);
       }
-      $('#modal-show-img .modal-body').html(img);
+      let previewImg = '<img src="' + src + '" class="img-fluid" style="max-width: 100%; max-height: 70vh; height: auto; border-radius: 4px;">';
+      $('#modal-show-img .modal-body').html(previewImg);
       $('#modal-show-img').modal('show');
     }
   });
