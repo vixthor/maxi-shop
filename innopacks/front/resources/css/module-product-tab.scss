@@ -12,7 +12,7 @@
 
     .nav-link {
       border: none !important;
-      color: #7E7E7E;
+      color: #F5F5F5;
       border-radius: 50px;
       margin: 0;
       font-size: 12px;
@@ -24,11 +24,11 @@
       }
 
       &:hover {
-        background-color: #FFEBF2;
+        background-color: #f5cf83;
       }
 
       &.active {
-        background-color: #FFEBF2;
+        background-color: #C99A3A;
         color: $primary;
       }
     }

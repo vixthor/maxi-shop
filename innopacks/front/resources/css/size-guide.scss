@@ -1,0 +1,153 @@
+/* Size Guide styles
+   File: innopacks/front/resources/css/size-guide.scss
+   Purpose: Styles for the Size Guide images block on the products index page.
+*/
+
+.size-guide-img {
+  background: transparent;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.size-guide-img img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px; /* prevent extremely tall images from pushing layout */
+  object-fit: contain;
+}
+
+/* two-column on md and up, single column on xs */
+@media (min-width: 768px) {
+  .size-guide-img { padding: 0.75rem; }
+}
+
+/* optional utility: center caption under image */
+.size-guide-caption {
+  text-align: center;
+  color: #cccccc; /* light gray text */
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
+}
+
+/* Swiper specific tweaks for mobile slider */
+.size-guide-swiper {
+  .swiper-slide {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+
+  .swiper-slide img {
+    width: 100%;
+    height: auto;
+    max-height: 480px;
+    object-fit: contain;
+  }
+
+  .swiper-button-prev, .swiper-button-next {
+    color: #cccccc !important; /* light gray for nav buttons */
+  }
+
+  .swiper-pagination-bullet { background: rgba(255,255,255,0.6); }
+  .swiper-pagination-bullet-active { background: #fff; }
+}
+
+/* Desktop swiper tweaks */
+#size-guide-swiper-desktop {
+  .swiper-slide {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+
+  .swiper-slide .size-guide-img {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .swiper-slide img {
+    width: 100%;
+    height: 100%;
+    max-height: 520px;
+    object-fit: contain;
+  }
+}
+
+/* Gold accent and gray circular background for pagination and nav */
+.size-guide-swiper .swiper-pagination-bullet,
+#size-guide-swiper-desktop .swiper-pagination-bullet,
+.swiper .swiper-pagination-bullet {
+  width: 12px;
+  height: 12px;
+  background: #4a4a4a; /* gray circular background */
+  opacity: 1;
+  border-radius: 50%;
+  margin: 0 6px !important;
+  box-shadow: none;
+  transition: transform .18s ease, background-color .18s ease;
+}
+
+.size-guide-swiper .swiper-pagination-bullet-active,
+#size-guide-swiper-desktop .swiper-pagination-bullet-active,
+.swiper .swiper-pagination-bullet-active {
+  background: #FFD700; /* gold accent */
+  transform: scale(1.15);
+}
+
+.size-guide-swiper .swiper-button-prev,
+.size-guide-swiper .swiper-button-next,
+#size-guide-swiper-desktop .swiper-button-prev,
+#size-guide-swiper-desktop .swiper-button-next,
+.swiper .swiper-button-prev,
+.swiper .swiper-button-next {
+  background: #4a4a4a; /* gray circular background */
+  color: #FFD700 !important; /* gold icon color */
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* custom pagination container */
+.size-guide-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.size-guide-pagination .size-guide-page {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4a4a4a;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: transform .12s ease, background-color .12s ease;
+}
+
+.size-guide-pagination .size-guide-page.active {
+  background: #FFD700;
+  transform: scale(1.18);
+}
+
+.size-guide-swiper .swiper-button-prev:hover,
+.size-guide-swiper .swiper-button-next:hover,
+#size-guide-swiper-desktop .swiper-button-prev:hover,
+#size-guide-swiper-desktop .swiper-button-next:hover,
+.swiper .swiper-button-prev:hover,
+.swiper .swiper-button-next:hover {
+  transform: translateY(-1px);
+}
