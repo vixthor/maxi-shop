@@ -27,7 +27,7 @@
 /* optional utility: center caption under image */
 .size-guide-caption {
   text-align: center;
-  color: $muted-color; /* uses variable from _variables if present */
+  color: #cccccc; /* light gray text */
   font-size: 0.95rem;
   margin-top: 0.5rem;
 }
@@ -49,7 +49,7 @@
   }
 
   .swiper-button-prev, .swiper-button-next {
-    color: $muted-color !important;
+    color: #cccccc !important; /* light gray for nav buttons */
   }
 
   .swiper-pagination-bullet { background: rgba(255,255,255,0.6); }
