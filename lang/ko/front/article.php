@@ -11,5 +11,8 @@ return [
     'articles'            => '기사 홈',
     'keyword'             => '키워드 입력',
     'news_classification' => '뉴스 분류',
+    'news_tag'            => '뉴스 태그',
+    'related_articles'    => '관련 문장',
+    'related_products'    => '관련 상품',
     'search'              => '검색',
 ];

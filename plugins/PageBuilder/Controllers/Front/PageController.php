@@ -12,6 +12,7 @@ namespace Plugin\PageBuilder\Controllers\Front;
 use App\Http\Controllers\Controller;
 use Exception;
 use Illuminate\Http\Request;
+use InnoShop\Common\Models\Page;
 use InnoShop\Common\Models\PageModule;
 use InnoShop\Common\Repositories\PageRepo;
 use Plugin\PageBuilder\Services\DesignService;
@@ -19,42 +20,72 @@ use Plugin\PageBuilder\Services\DesignService;
 class PageController extends Controller
 {
     /**
+     * Page list (if needed in the future)
+     *
+     * @return mixed
+     */
+    public function index(): mixed
+    {
+        // Redirect to home or implement page list if needed
+        return redirect()->route('front.home.index');
+    }
+
+    /**
+     * Show page by ID
+     *
+     * @param  Page  $page
+     * @return mixed
+     * @throws Exception
+     */
+    public function show(Page $page): mixed
+    {
+        if (! $page->active) {
+            abort(404);
+        }
+
+        return $this->renderPage($page);
+    }
+
+    /**
+     * Show page by slug (consistent with product-{slug}, category-{slug}, article-{slug})
+     *
      * @param  Request  $request
      * @return mixed
      * @throws Exception
      */
-    public function show(Request $request): mixed
+    public function slugShow(Request $request): mixed
     {
-        $locale = front_locale_code();
-        if (hide_url_locale()) {
-            $slug = trim($request->getRequestUri(), '/');
-        } else {
-            $slug = str_replace("/$locale/", '', $request->getRequestUri());
-        }
+        $slug = $request->slug;
+        $page = PageRepo::getInstance()
+            ->builder(['slug' => $slug, 'active' => true])
+            ->firstOrFail();
 
-        $filters = [
-            'slug'   => $slug,
-            'active' => true,
-        ];
-        $page = PageRepo::getInstance()->builder($filters)->firstOrFail();
+        return $this->renderPage($page);
+    }
+
+    /**
+     * Render page with modules
+     *
+     * @param  Page  $page
+     * @return mixed
+     * @throws Exception
+     */
+    private function renderPage(Page $page): mixed
+    {
         $page->increment('viewed');
 
         $pageModule = PageModule::query()->where('page_id', $page->id)->first();
+        $modules    = $pageModule->module_data ?? [];
 
-        $modules['modules'] = $pageModule->module_data ?? [];
-
-        // 使用 DesignService 处理每个模块，确保与预览一致
         $processedModules = [];
-        foreach ($modules['modules'] as $module) {
+        foreach ($modules as $module) {
             $moduleCode = $module['code'] ?? '';
             $content    = $module['content'] ?? [];
 
             if ($moduleCode && $content) {
-                $processedContent = DesignService::getInstance()->handleModuleContent($moduleCode, $content);
-
                 $processedModules[] = [
                     'code'      => $moduleCode,
-                    'content'   => $processedContent,
+                    'content'   => DesignService::getInstance()->handleModuleContent($moduleCode, $content),
                     'module_id' => $module['module_id'] ?? 'module-'.uniqid(),
                     'name'      => $module['name'] ?? '',
                     'view_path' => $module['view_path'] ?? '',
@@ -62,11 +93,9 @@ class PageController extends Controller
             }
         }
 
-        $data = [
+        return view('PageBuilder::front.page', [
             'page'    => $page,
             'modules' => $processedModules,
-        ];
-
-        return view('PageBuilder::front.page', $data);
+        ]);
     }
 }

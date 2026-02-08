@@ -11,11 +11,13 @@ namespace InnoShop\Plugin;
 
 use Exception;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use InnoShop\Panel\Middleware\SetPanelLocale;
+use InnoShop\Plugin\Core\Plugin;
 use InnoShop\Plugin\Core\PluginManager;
 
 class PluginServiceProvider extends ServiceProvider
@@ -44,12 +46,25 @@ class PluginServiceProvider extends ServiceProvider
     }
 
     /**
+     * Flag to prevent duplicate boot execution (important for Laravel Octane)
+     *
+     * @var bool
+     */
+    private static bool $booted = false;
+
+    /**
      * Boot Plugin Service Provider
      *
      * @throws Exception
      */
     public function boot(): void
     {
+        // Prevent duplicate boot execution (especially important for Laravel Octane)
+        if (self::$booted) {
+            return;
+        }
+        self::$booted = true;
+
         $this->registerMigrations();
 
         if (! installed()) {
@@ -65,6 +80,7 @@ class PluginServiceProvider extends ServiceProvider
 
         $this->registerPanelRoutes();
         $this->loadViewTemplates();
+        $this->registerMarketplaceSettingsHook();
 
         $this->pluginBasePath = base_path('plugins');
         $this->bootAllPlugins();
@@ -147,16 +163,20 @@ class PluginServiceProvider extends ServiceProvider
     /**
      * Call Plugin Boot::init()
      *
-     * @param  $plugin
+     * @param  Plugin  $plugin
      */
-    private function bootPlugin($plugin): void
+    private function bootPlugin(Plugin $plugin): void
     {
         $filePath   = $plugin->getBootFile();
         $pluginCode = $plugin->getDirname();
         if (file_exists($filePath)) {
             $className = "Plugin\\$pluginCode\\Boot";
             if (method_exists($className, 'init')) {
-                (new $className)->init();
+                try {
+                    (new $className)->init();
+                } catch (\Exception $e) {
+                    Log::error("Failed to boot plugin: {$pluginCode} - {$e->getMessage()}");
+                }
             }
         }
     }
@@ -174,7 +194,54 @@ class PluginServiceProvider extends ServiceProvider
             return [];
         }
 
-        return $this->getClassesFromPath($commandsPath);
+        return $this->getClassesFromPathRecursive($commandsPath);
+    }
+
+    /**
+     * Get classes from path recursively (for commands in subdirectories).
+     *
+     * @param  string  $path
+     * @return array
+     */
+    private function getClassesFromPathRecursive(string $path): array
+    {
+        if (! file_exists($path)) {
+            return [];
+        }
+
+        $classes  = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && $file->getExtension() === 'php') {
+                $filePath     = $file->getPathname();
+                $relativePath = str_replace($this->pluginBasePath, '', $filePath);
+                $relativePath = ltrim($relativePath, '/');
+
+                // Extract plugin code and subdirectory path
+                $parts = explode('/', $relativePath);
+                if (count($parts) >= 3 && $parts[1] === 'Commands') {
+                    $pluginCode = $parts[0];
+                    $subPath    = implode('/', array_slice($parts, 2, -1)); // Exclude filename
+                    $baseName   = basename($filePath, '.php');
+
+                    // Build namespace: Plugin\{PluginCode}\Commands\{SubPath}\{ClassName}
+                    $namespacePath = "Plugin\\{$pluginCode}\\Commands";
+                    if ($subPath) {
+                        $namespacePath .= '\\'.str_replace('/', '\\', $subPath);
+                    }
+                    $className = $namespacePath.'\\'.$baseName;
+
+                    if (class_exists($className)) {
+                        $classes[] = $className;
+                    }
+                }
+            }
+        }
+
+        return $classes;
     }
 
     /**
@@ -273,7 +340,7 @@ class PluginServiceProvider extends ServiceProvider
         $frontRoutePath = "$pluginBasePath/$pluginCode/Routes/front.php";
         if (file_exists($frontRoutePath)) {
             $locales = locales();
-            if (hide_url_locale()) {
+            if (hide_url_locale() || $locales->isEmpty()) {
                 Route::middleware('front')
                     ->name('front.')
                     ->group(function () use ($frontRoutePath) {
@@ -503,6 +570,17 @@ class PluginServiceProvider extends ServiceProvider
                 echo $output;
                 ?>';
         });
+    }
+
+    /**
+     * Register marketplace settings hook
+     *
+     * @return void
+     */
+    private function registerMarketplaceSettingsHook(): void
+    {
+        $hook = new \InnoShop\Plugin\Hooks\MarketplaceSettingsHook;
+        $hook->init();
     }
 
     /**

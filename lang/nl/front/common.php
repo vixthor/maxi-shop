@@ -3,7 +3,7 @@
  * Copyright (c) Since 2024 InnoShop - All Rights Reserved
  *
  * @link       https://www.innoshop.com
- * @author     iszmxw <mail@54zm.com>
+ * @author     InnoShop <team@innoshop.com>
  * @license    https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
 
@@ -11,6 +11,7 @@ return [
     'about_us'          => 'Over ons',
     'action'            => 'Actie',
     'add'               => 'Toevoegen',
+    'anonymous'         => 'Anoniem',
     'all'               => 'Alles',
     'back_page'         => 'Terug naar vorige pagina',
     'brands'            => 'Merken',
@@ -24,6 +25,9 @@ return [
     'deleted_success'   => 'Verwijdering geslaagd',
     'edit'              => 'Bewerken',
     'error_required'    => 'Vul alstublieft :name in',
+    'filter'            => '"Screening',
+    'found_categories'  => 'Find :count categories',
+    'found_suppliers'   => 'Find :count suppliers',
     'home'              => 'Startpagina',
     'image'             => 'Afbeelding',
     'in_stock'          => 'Op voorraad',
@@ -34,9 +38,11 @@ return [
     'name'              => 'Naam',
     'news'              => 'Nieuws',
     'no'                => 'Nee',
+    'no_search_results' => 'No relevant results were found',
     'out_of_stock'      => 'Uitverkocht',
     'page_total_show'   => 'Toon items van :first tot :last, totaal :total items',
     'pages'             => 'Pagina\'s',
+    'pagination_info'   => 'total :pages, Total :total items',
     'password'          => 'Wachtwoord',
     'please_choose'     => 'Maak een keuze',
     'products'          => 'Producten',
@@ -44,6 +50,7 @@ return [
     'register'          => 'Registreren',
     'saved_success'     => 'Opgeslagen',
     'search'            => 'Zoeken',
+    'search_results'    => 'Search results',
     'show'              => 'Aantal',
     'sort'              => 'Sorteren',
     'specials'          => 'Speciale aanbiedingen',
@@ -55,5 +62,6 @@ return [
     'text_hint'         => 'Hint',
     'updated_success'   => 'Bijgewerkt',
     'view'              => 'Bekijken',
+    'view_more'         => 'View more',
     'yes'               => 'Ja',
 ];

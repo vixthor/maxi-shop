@@ -88,6 +88,8 @@ class CategoryRepo extends BaseRepo
      */
     public function builder(array $filters = []): Builder
     {
+        $filters = array_merge($this->filters, $filters);
+
         $builder = Category::query()->with([
             'translation',
             'parent.translation',
@@ -131,6 +133,13 @@ class CategoryRepo extends BaseRepo
 
         if (isset($filters['active'])) {
             $builder->where('active', (bool) $filters['active']);
+        }
+
+        $keyword = $filters['keyword'] ?? '';
+        if ($keyword) {
+            $builder->whereHas('translation', function ($query) use ($keyword) {
+                $query->where('name', 'like', "%{$keyword}%");
+            });
         }
 
         return fire_hook_filter('repo.category.builder', $builder);

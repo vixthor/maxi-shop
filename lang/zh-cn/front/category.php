@@ -8,6 +8,7 @@
  */
 
 return [
+    'categories'     => '分类',
     'category'       => '产品分类',
     'content'        => '详细描述',
     'default'        => '默认',

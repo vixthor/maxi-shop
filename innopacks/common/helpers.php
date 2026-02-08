@@ -92,6 +92,19 @@ if (! function_exists('system_setting_locale')) {
     }
 }
 
+if (! function_exists('auth_method')) {
+    /**
+     * Get authentication method setting
+     * Returns: 'email_only', 'phone_only', or 'both'
+     *
+     * @return string
+     */
+    function auth_method(): string
+    {
+        return system_setting('auth_method', 'email_only');
+    }
+}
+
 if (! function_exists('locale_image')) {
     /**
      * Get locale image
@@ -782,7 +795,7 @@ if (! function_exists('front_route')) {
      */
     function front_route($name, mixed $parameters = [], bool $absolute = true): string
     {
-        if (hide_url_locale()) {
+        if (hide_url_locale() || locales()->isEmpty()) {
             return route('front.'.$name, $parameters, $absolute);
         }
 
@@ -816,7 +829,7 @@ if (! function_exists('has_front_route')) {
      */
     function has_front_route($name): bool
     {
-        if (hide_url_locale()) {
+        if (hide_url_locale() || locales()->isEmpty()) {
             $route = 'front.'.$name;
         } else {
             $route = front_locale_code().'.front.'.$name;
@@ -838,7 +851,7 @@ if (! function_exists('account_route')) {
      */
     function account_route($name, mixed $parameters = [], bool $absolute = true): string
     {
-        if (hide_url_locale()) {
+        if (hide_url_locale() || locales()->isEmpty()) {
             return route('front.account.'.$name, $parameters, $absolute);
         }
 
@@ -882,7 +895,15 @@ if (! function_exists('equal_route_name')) {
      */
     function equal_route_name($routeName, ?string $prefix = null): bool
     {
-        $currentRouteName = Route::getCurrentRoute()->getName();
+        $currentRoute = Route::getCurrentRoute();
+        if (! $currentRoute) {
+            return false;
+        }
+
+        $currentRouteName = $currentRoute->getName();
+        if (! $currentRouteName) {
+            return false;
+        }
 
         // Default prefix removal (locale code)
         $defaultPrefix    = front_locale_code().'.';
@@ -1038,6 +1059,30 @@ if (! function_exists('default_currency')) {
     }
 }
 
+if (! function_exists('currency_decimal_place')) {
+    /**
+     * Get the decimal place for a currency.
+     * This is used for rounding calculations to respect currency precision settings.
+     *
+     * @param  string  $currency  Currency code (e.g., 'USD', 'EUR'). If empty, uses current currency.
+     * @return int Decimal places (e.g., 2 for USD, 0 for JPY, 3 for KWD)
+     */
+    function currency_decimal_place(string $currency = ''): int
+    {
+        if (! $currency) {
+            $currency = is_admin() ? system_setting('currency') : current_currency_code();
+        }
+
+        // Use the cached currencies collection for performance
+        $currencyModel = currencies()->where('code', strtolower($currency))->first();
+        if ($currencyModel) {
+            return (int) $currencyModel->decimal_place;
+        }
+
+        return 2;
+    }
+}
+
 if (! function_exists('theme_path')) {
     /**
      * Generate an asset path for the application.
@@ -1150,6 +1195,7 @@ if (! function_exists('theme_image')) {
             return image_resize('', $width, $height, 'contain');
         }
 
+        // ImageService will automatically validate and use placeholder if image is invalid
         return image_resize($destThemePath, $width, $height, 'contain');
     }
 }
@@ -1503,5 +1549,80 @@ if (! function_exists('theme_mix')) {
         }
 
         return asset($path);
+    }
+}
+
+if (! function_exists('smart_log')) {
+    /**
+     * Smart logging function that respects debug mode and log levels
+     *
+     * This function will log messages based on:
+     * - APP_DEBUG setting (debug/info/warning only log when debug is enabled)
+     * - Log level (error/critical/alert/emergency always log)
+     * - LOG_LEVEL configuration (respects minimum log level)
+     *
+     * @param  string  $level  Log level: debug, info, warning, error, critical, alert, emergency
+     * @param  string  $message  Log message
+     * @param  array  $context  Additional context data
+     * @param  bool  $force  Force logging even if debug is disabled (default: false, auto-determined by level)
+     * @return void
+     */
+    function smart_log(string $level, string $message, array $context = [], ?bool $force = null): void
+    {
+        $level       = strtolower($level);
+        $validLevels = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
+
+        if (! in_array($level, $validLevels)) {
+            $level = 'info';
+        }
+
+        // Determine if we should log based on debug mode
+        $isDebug = config('app.debug', false);
+
+        // Critical levels always log regardless of debug mode
+        $criticalLevels = ['error', 'critical', 'alert', 'emergency'];
+        $shouldLog      = false;
+
+        if ($force === true) {
+            // Force logging
+            $shouldLog = true;
+        } elseif ($force === false) {
+            // Force no logging
+            $shouldLog = false;
+        } elseif (in_array($level, $criticalLevels)) {
+            // Critical levels always log
+            $shouldLog = true;
+        } elseif ($isDebug) {
+            // Non-critical levels only log when debug is enabled
+            $shouldLog = true;
+        }
+
+        if (! $shouldLog) {
+            return;
+        }
+
+        // Check LOG_LEVEL configuration to respect minimum log level
+        $logLevel      = strtolower(config('logging.channels.single.level', 'debug'));
+        $levelPriority = [
+            'debug'     => 0,
+            'info'      => 1,
+            'notice'    => 2,
+            'warning'   => 3,
+            'error'     => 4,
+            'critical'  => 5,
+            'alert'     => 6,
+            'emergency' => 7,
+        ];
+
+        $logLevelPriority     = $levelPriority[$logLevel] ?? 0;
+        $messageLevelPriority = $levelPriority[$level] ?? 0;
+
+        // Only log if message level is >= configured log level
+        if ($messageLevelPriority < $logLevelPriority) {
+            return;
+        }
+
+        // Log the message using Laravel's Log facade
+        \Illuminate\Support\Facades\Log::{$level}($message, $context);
     }
 }

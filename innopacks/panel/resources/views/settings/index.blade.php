@@ -19,6 +19,7 @@
             <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-webdata">{{ __('panel/setting.website_data') }}</a>
             <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-image">{{ __('panel/setting.image_settings') }}</a>
             <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-email">{{ __('panel/setting.email_setting') }}</a>
+            <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-sms">{{ __('panel/setting.sms_setting') }}</a>
             <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-ai">{{ __('panel/setting.ai_setting') }}</a>
             <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#tab-setting-logistics-information">{{ __('panel/setting.express_company') }}</a>
             @hookinsert('panel.settings.tab.nav.bottom')
@@ -35,6 +36,7 @@
             @include('panel::settings._web_data')
             @include('panel::settings._image_setting')
             @include('panel::settings._email_setting')
+            @include('panel::settings._sms_setting')
             @include('panel::settings._ai_setting')
             @include('panel::settings._logistics_information')
             @hookinsert('panel.settings.tab.pane.bottom')
@@ -146,10 +148,5 @@
       })
     });
   })
-
-  $('.settings-nav').on('click', 'a', function() {
-    var text = $(this).text();
-    $('.setting-header').text(text);
-  });
 </script>
 @endpush

@@ -23,7 +23,7 @@
         @if($plugin->getLocaleDescription())
           <div class="mb-2 text-secondary plugin-header-desc">{{ $plugin->getLocaleDescription() }}</div>
         @endif
-        <div class="d-flex flex-wrap gap-3">
+        <div class="d-flex flex-wrap gap-3 align-items-center">
           <div class="text-secondary small">
             <i class="bi bi-person"></i> {{ __('panel/plugin.author') }}: {{ $plugin->getAuthorName() }}
             @if($plugin->getAuthorEmail())
@@ -33,9 +33,20 @@
           @if($plugin->getType())
             <div class="text-secondary small"><i class="bi bi-tag"></i> {{ __('panel/plugin.type') }}：{{ $plugin->getTypeFormat() }}</div>
           @endif
+          @if($plugin->checkInstalled() && $plugin->getEnabled() && $plugin->getMenuUrl())
+            <div class="ms-auto">
+              <a href="{{ $plugin->getMenuUrl() }}" class="btn btn-success btn-sm" title="{{ __('panel/common.use') }}">
+                <i class="bi bi-box-arrow-up-right"></i> {{ __('panel/common.use') }}
+              </a>
+            </div>
+          @endif
         </div>
       </div>
     </div>
+    
+    @php
+      $readmeHtml = $plugin->getReadmeHtml();
+    @endphp
     
     <ul class="nav nav-tabs mt-4" role="tablist">
       <li class="nav-item">
@@ -43,7 +54,7 @@
           <i class="bi bi-gear"></i> {{ trans('panel/plugin.config_settings') }}
         </button>
       </li>
-      @if($plugin->getReadmeHtml())
+      @if(!empty($readmeHtml) && trim($readmeHtml) !== '')
       <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#readme-tab" role="tab">
           <i class="bi bi-book"></i> {{ trans('panel/plugin.usage_documentation') }}
@@ -52,26 +63,26 @@
       @endif
     </ul>
 
-    <!-- 选项卡内容 -->
     <div class="tab-content mt-3">
-      <!-- 配置选项卡 -->
       <div class="tab-pane fade show active" id="config-tab" role="tabpanel">
-        <form class="needs-validation" id="app-form" novalidate action="{{ panel_route('plugins.update', [$plugin->getCode()]) }}" method="POST">
-          @csrf
-          {{ method_field('put') }}
-          <div class="row">
-            <div class="col-12 col-md-8">
-              @include('plugin::plugins.fields', ['fields' => $fields, 'errors' => $errors])
+        @if(!empty($customView))
+          @includeIf($customView, ['plugin' => $plugin, 'fields' => $fields ?? [], 'errors' => $errors ?? []])
+        @else
+          <form class="needs-validation" id="app-form" novalidate action="{{ panel_route('plugins.update', [$plugin->getCode()]) }}" method="POST">
+            @csrf
+            {{ method_field('put') }}
+            <div class="row">
+              <div class="col-12 col-md-8">
+                @include('plugin::plugins.fields', ['fields' => $fields, 'errors' => $errors, 'plugin' => $plugin])
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        @endif
       </div>
-
-      <!-- 说明文档选项卡 -->
-      @if($plugin->getReadmeHtml())
+      @if(!empty($readmeHtml) && trim($readmeHtml) !== '')
       <div class="tab-pane fade" id="readme-tab" role="tabpanel">
         <div class="markdown-body">
-          {!! $plugin->getReadmeHtml() !!}
+          {!! $readmeHtml !!}
         </div>
       </div>
       @endif

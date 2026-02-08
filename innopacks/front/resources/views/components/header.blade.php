@@ -4,32 +4,36 @@
   <div class="header-top">
     <div class="container d-flex justify-content-between align-items-center">
       <div class="language-switch d-flex align-items-center">
-        <div class="dropdown">
-          <a class="btn dropdown-toggle" href="javascript:void(0)">
-            <img src="{{ asset($currentLocale->image) }}" class="img-fluid"> {{ $currentLocale->name }}
-          </a>
-          <div class="dropdown-menu">
-            @foreach (locales() as $locale)
-              <a class="dropdown-item d-flex" href="{{ front_route('locales.switch', ['code' => $locale->code]) }}">
-                <div class="wh-20 me-2"><img src="{{ image_origin($locale['image']) }}" class="img-fluid border">
-                </div>
-                {{ $locale->name }}
-              </a>
-            @endforeach
+        @if($currentLocale && locales()->isNotEmpty())
+          <div class="dropdown">
+            <a class="btn dropdown-toggle" href="javascript:void(0)">
+              <img src="{{ asset($currentLocale->image) }}" class="img-fluid"> {{ $currentLocale->name }}
+            </a>
+            <div class="dropdown-menu">
+              @foreach (locales() as $locale)
+                <a class="dropdown-item d-flex" href="{{ front_route('locales.switch', ['code' => $locale->code]) }}">
+                  <div class="wh-20 me-2"><img src="{{ image_origin($locale['image']) }}" class="img-fluid border">
+                  </div>
+                  {{ $locale->name }}
+                </a>
+              @endforeach
+            </div>
           </div>
-        </div>
-        <div class="dropdown ms-4">
-          <a class="btn dropdown-toggle" href="javascript:void(0)">
-            {{ current_currency()->name }}
-          </a>
-          <div class="dropdown-menu">
-            @foreach (currencies() as $currency)
-              <a class="dropdown-item" href="{{ front_route('currencies.switch', ['code' => $currency->code]) }}">
-                {{ $currency->name }} ({{ $currency->symbol_left }})
-              </a>
-            @endforeach
+        @endif
+        @if(current_currency() && currencies()->isNotEmpty())
+          <div class="dropdown {{ $currentLocale && locales()->isNotEmpty() ? 'ms-4' : '' }}">
+            <a class="btn dropdown-toggle" href="javascript:void(0)">
+              {{ current_currency()->name }}
+            </a>
+            <div class="dropdown-menu">
+              @foreach (currencies() as $currency)
+                <a class="dropdown-item" href="{{ front_route('currencies.switch', ['code' => $currency->code]) }}">
+                  {{ $currency->name }} ({{ $currency->symbol_left }})
+                </a>
+              @endforeach
+            </div>
           </div>
-        </div>
+        @endif
         @hookinsert('layouts.header.currency.after')
       </div>
 
@@ -69,7 +73,7 @@
                   <li class="nav-item">
                     <div class="dropdown">
                       @if ($menu['name'])
-                        <a class="nav-link {{ equal_url($menu['url']) ? 'active' : '' }}"
+                        <a class="nav-link {{ (request()->route() && equal_url($menu['url'])) ? 'active' : '' }}"
                            href="{{ $menu['url'] }}">{{ $menu['name'] }}</a>
                       @endif
                       <ul class="dropdown-menu">
@@ -84,7 +88,7 @@
                 @else
                   @if ($menu['name'])
                     <li class="nav-item">
-                      <a class="nav-link {{ equal_url($menu['url']) ? 'active' : '' }}"
+                      <a class="nav-link {{ (request()->route() && equal_url($menu['url'])) ? 'active' : '' }}"
                          href="{{ $menu['url'] }}">{{ $menu['name'] }}</a>
                     </li>
                   @endif
@@ -175,7 +179,7 @@
         <div class="accordion accordion-flush" id="menu-accordion">
           <div class="accordion-item">
             <div class="nav-item-text">
-              <a class="nav-link {{ equal_route_name('home.index') ? 'active' : '' }}" aria-current="page"
+              <a class="nav-link {{ (request()->route() && equal_route_name('home.index')) ? 'active' : '' }}" aria-current="page"
                  href="{{ front_route('home.index') }}">{{ __('front/common.home') }}</a>
             </div>
           </div>
