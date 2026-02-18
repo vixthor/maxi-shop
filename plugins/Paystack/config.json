@@ -1,0 +1,18 @@
+{
+    "code": "paystack",
+    "name": {
+        "zh-cn": "Paystack 支付",
+        "en": "Paystack"
+    },
+    "description": {
+        "zh-cn": "Paystack 是一个专注于非洲市场的支付处理平台，支持多种支付方式和货币。提供简单易用的API和强大的工具，帮助商家快速集成支付功能。",
+        "en": "Paystack is a payment processing platform focused on the African market, supporting multiple payment methods and currencies. It provides an easy-to-use API and powerful tools to help merchants quickly integrate payment functionalities."
+    },
+    "type": "billing",
+    "version": "v1.0.0",
+    "icon": "/image/logo.png",
+    "author": {
+        "name": "InnoShop",
+        "email": "team@innoshop.com"
+    }
+}
