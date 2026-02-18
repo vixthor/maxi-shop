@@ -1,31 +1,31 @@
 @php
   $orderNumber = request()->get('order_number');
-  $publicKey = plugin_setting('paystack', 'public_key');
 @endphp
 
 <div id="paystack-payment" class="paystack-container">
   <div class="payment-info">
     <h3>@lang('Paystack::common.payment_title')</h3>
-    <p>@lang('Paystack::common.proceed_payment')</p>
-    <button id="pay-btn" class="btn btn-primary" onclick="initializePayment()">
+    <button id="pay-btn" class="btn btn-primary" type="button">
       @lang('Paystack::common.proceed_payment')
     </button>
   </div>
-  <div id="loading" style="display:none; text-align:center; margin-top: 20px;">
-    <p>@lang('Paystack::common.loading')</p>
+  <div id="loading-spinner" style="display:none; text-align:center; margin-top:15px;">
+    <div class="spinner-border" role="status">
+      <span class="sr-only">@lang('Paystack::common.loading')</span>
+    </div>
   </div>
 </div>
 
 <script>
+  const payBtn = document.getElementById('pay-btn');
+  const loadingSpinner = document.getElementById('loading-spinner');
   const orderNumber = '{{ $orderNumber }}';
-  const publicKey = '{{ $publicKey }}';
+
+  payBtn.addEventListener('click', initializePayment);
 
   function initializePayment() {
-    const payBtn = document.getElementById('pay-btn');
-    const loading = document.getElementById('loading');
-    
     payBtn.disabled = true;
-    loading.style.display = 'block';
+    loadingSpinner.style.display = 'block';
 
     fetch('/paystack/initialize', {
       method: 'POST',
@@ -39,21 +39,23 @@
     })
     .then(response => response.json())
     .then(data => {
-      if (data.status) {
-        // Redirect to Paystack authorization URL
+      if (data.status && data.data.authorization_url) {
+        // Redirect to Paystack checkout page
         window.location.href = data.data.authorization_url;
       } else {
-        alert(data.message || '@lang("Paystack::common.initialize_fail")');
-        payBtn.disabled = false;
-        loading.style.display = 'none';
+        showError(data.message || '@lang("Paystack::common.initialize_fail")');
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      alert('@lang("Paystack::common.initialize_fail")');
-      payBtn.disabled = false;
-      loading.style.display = 'none';
+      showError('@lang("Paystack::common.initialize_fail")');
     });
+  }
+
+  function showError(message) {
+    loadingSpinner.style.display = 'none';
+    payBtn.disabled = false;
+    alert(message);
   }
 </script>
 
@@ -62,8 +64,7 @@
     padding: 20px;
     border: 1px solid #ddd;
     border-radius: 5px;
-    max-width: 500px;
-    margin: 20px auto;
+    background-color: #f9f9f9;
   }
 
   .payment-info {
@@ -71,26 +72,22 @@
   }
 
   .payment-info h3 {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
     color: #333;
   }
 
-  .payment-info p {
-    margin-bottom: 20px;
-    color: #666;
-  }
-
-  #pay-btn {
-    padding: 12px 40px;
+  .btn {
+    padding: 10px 30px;
     font-size: 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
   }
 
-  #pay-btn:disabled {
+  .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-</style>
 
+  .spinner-border {
+    width: 2rem;
+    height: 2rem;
+  }
+</style>
