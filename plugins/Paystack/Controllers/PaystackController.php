@@ -135,13 +135,23 @@ class PaystackController extends Controller
         Log::info('Query: ' . json_encode($request->query()));
         Log::info('Body: ' . $request->getContent());
 
-        // Handle GET redirect from Paystack (after user completes payment)
-        if ($request->isMethod('get')) {
-            return $this->handlePaystackCallback($request);
-        }
+        try {
+            // Handle GET redirect from Paystack (after user completes payment)
+            if ($request->isMethod('get')) {
+                return $this->handlePaystackCallback($request);
+            }
 
-        // Handle POST webhook from Paystack
-        return $this->handlePaystackWebhook($request);
+            // Handle POST webhook from Paystack
+            return $this->handlePaystackWebhook($request);
+        } catch (\Exception $e) {
+            Log::error('Webhook handler error: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
+            
+            if ($request->isMethod('get')) {
+                return redirect()->route('payment.success')->with('error', 'Callback error: ' . $e->getMessage());
+            }
+            return json_success('Error received');
+        }
     }
 
     /**
@@ -152,78 +162,80 @@ class PaystackController extends Controller
      */
     private function handlePaystackCallback(Request $request)
     {
+        $reference = $request->get('reference') ?? $request->get('trxref');
+        
+        Log::info('=== Callback START ===');
+        Log::info('Reference: ' . $reference);
+
+        if (!$reference) {
+            Log::warning('No reference provided in callback');
+            return redirect()->route('payment.success')->with('error', 'Invalid reference');
+        }
+
+        // Extract order number from reference (format: order_NUMBER_TIMESTAMP)
+        $parts = explode('_', $reference);
+        Log::info('Reference parts: ' . json_encode($parts));
+        
+        if (count($parts) < 2) {
+            Log::warning('Invalid reference format: ' . $reference);
+            return redirect()->route('payment.success')->with('error', 'Invalid reference format');
+        }
+
+        $orderNumber = $parts[1];
+        Log::info('Order number extracted: ' . $orderNumber);
+        
         try {
-            $reference = $request->get('reference') ?? $request->get('trxref');
-            
-            Log::info('Paystack callback reference: ' . $reference);
-
-            if (!$reference) {
-                Log::warning('No reference provided in callback');
-                return redirect()->route('payment.success')->with('error', 'Invalid reference');
-            }
-
-            // Extract order number from reference (format: order_NUMBER_TIMESTAMP)
-            $parts = explode('_', $reference);
-            if (count($parts) < 2) {
-                Log::warning('Invalid reference format: ' . $reference);
-                return redirect()->route('payment.success')->with('error', 'Invalid reference format');
-            }
-
-            $orderNumber = $parts[1];
-            Log::info('Looking up order: ' . $orderNumber);
-            
             $order = OrderRepo::getInstance()->getOrderByNumber($orderNumber);
+            Log::info('Order lookup result: ' . json_encode($order ? ['id' => $order->id, 'number' => $order->number] : 'null'));
 
             if (!$order) {
-                Log::warning('Order not found: ' . $orderNumber);
+                Log::warning('Order not found for number: ' . $orderNumber);
                 return redirect()->route('payment.success')->with('error', 'Order not found');
             }
 
-            Log::info('Found order: ' . $order->id . ' - ' . $order->number);
+            Log::info('Verifying payment with Paystack...');
+            $paystackService = new PaystackService($order);
+            $response = $paystackService->verifyTransaction($reference);
 
-            try {
-                $paystackService = new PaystackService($order);
-                $response = $paystackService->verifyTransaction($reference);
+            Log::info('Verification response status: ' . ($response['status'] ? 'true' : 'false'));
 
-                Log::info('Verification response: ' . json_encode($response));
-
-                if (!$response['status']) {
-                    Log::warning('Payment API error: ' . json_encode($response));
-                    return redirect()->route('payment.success')->with('error', 'Payment verification failed');
-                }
-
-                $paymentStatus = $response['data']['status'] ?? null;
-                if ($paymentStatus !== 'success') {
-                    Log::warning('Payment not successful. Status: ' . $paymentStatus);
-                    return redirect()->route('payment.success')->with('error', 'Payment was not successful: ' . $paymentStatus);
-                }
-
-                // Update payment record
-                $paymentData = [
-                    'charge_id' => $response['data']['reference'],
-                    'amount' => $order->total,
-                    'paid' => true,
-                    'reference' => json_encode($response['data']),
-                ];
-                PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
-                Log::info('Payment record updated for order: ' . $order->id);
-
-                // Update order status
-                StateMachineService::getInstance($order)->setShipment()->changeStatus(StateMachineService::PAID);
-                Log::info('Order status updated to PAID for order: ' . $order->id);
-
-                return redirect()->route('payment.success', ['order_number' => $orderNumber])->with('success', 'Payment successful');
-
-            } catch (\Exception $e) {
-                Log::error('Payment verification error: ' . $e->getMessage());
-                Log::error('Stack trace: ' . $e->getTraceAsString());
-                return redirect()->route('payment.success')->with('error', 'Verification error: ' . $e->getMessage());
+            if (!$response['status']) {
+                Log::warning('Payment API returned false status');
+                return redirect()->route('payment.success')->with('error', 'Payment verification failed');
             }
 
+            $paymentStatus = $response['data']['status'] ?? null;
+            Log::info('Payment status from Paystack: ' . $paymentStatus);
+            
+            if ($paymentStatus !== 'success') {
+                Log::warning('Payment not successful. Status: ' . $paymentStatus);
+                return redirect()->route('payment.success')->with('error', 'Payment status: ' . $paymentStatus);
+            }
+
+            // Update payment record
+            Log::info('Updating payment record...');
+            $paymentData = [
+                'charge_id' => $response['data']['reference'],
+                'amount' => $order->total,
+                'paid' => true,
+                'reference' => json_encode($response['data']),
+            ];
+            PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
+            Log::info('Payment record updated');
+
+            // Update order status
+            Log::info('Updating order status to PAID...');
+            StateMachineService::getInstance($order)->setShipment()->changeStatus(StateMachineService::PAID);
+            Log::info('Order status updated');
+
+            Log::info('=== Callback SUCCESS ===');
+            return redirect()->route('payment.success', ['order_number' => $orderNumber])->with('success', 'Payment successful');
+
         } catch (\Exception $e) {
-            Log::error('Paystack callback error: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            return redirect()->route('payment.success')->with('error', 'Error processing callback: ' . $e->getMessage());
+            Log::error('=== Callback ERROR ===');
+            Log::error('Message: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
+            return redirect()->route('payment.success')->with('error', $e->getMessage());
         }
     }
 
