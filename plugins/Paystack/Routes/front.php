@@ -10,6 +10,10 @@
 use Illuminate\Support\Facades\Route;
 use Plugin\Paystack\Controllers\PaystackController;
 
+// Frontend payment endpoints
 Route::post('/paystack/initialize', [PaystackController::class, 'initialize'])->name('paystack_initialize');
 Route::post('/paystack/verify', [PaystackController::class, 'verify'])->name('paystack_verify');
-Route::post('/callback/paystack', [PaystackController::class, 'callback'])->name('paystack_callback');
+
+// Webhook endpoints - Paystack will use one of these
+Route::post('/webhook/paystack', [PaystackController::class, 'webhook'])->name('paystack_webhook');
+Route::post('/paystack/webhook', [PaystackController::class, 'webhook'])->name('paystack_webhook_alt');

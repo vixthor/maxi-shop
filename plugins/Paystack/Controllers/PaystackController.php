@@ -118,15 +118,18 @@ class PaystackController extends Controller
     }
 
     /**
-     * Webhook callback from Paystack
-     * https://dashboard.paystack.com/#/settings/developers
+     * Webhook endpoint from Paystack
+     * Configure in Paystack Dashboard > Settings > Webhooks
+     * Test URL: https://yourdomain.com/webhook/paystack (or /paystack/webhook)
+     * 
+     * https://paystack.com/docs/webhooks
      *
      * @param  Request  $request
      * @return JsonResponse
      */
-    public function callback(Request $request): JsonResponse
+    public function webhook(Request $request): JsonResponse
     {
-        Log::info('====== Start Paystack Callback ======');
+        Log::info('====== Start Paystack Webhook ======');
 
         try {
             $webhookSecret = plugin_setting('paystack.webhook_secret');

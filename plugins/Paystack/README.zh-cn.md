@@ -44,17 +44,30 @@
 
 启用自动支付确认：
 
-1. 从插件配置获取您的 webhook URL
-2. 进入 Paystack 仪表板 > 设置 > Webhooks
-3. 添加 webhook URL
-4. 在插件设置中设置 webhook 密钥
-5. 订阅 `charge.success` 事件
+1. 获取您的 webhook URL（使用以下之一）：
+   - **测试回调 URL**: `https://yourdomain.com/webhook/paystack`
+   - **测试 Webhook URL**: `https://yourdomain.com/paystack/webhook`
+
+2. 进入 Paystack 仪表板：
+   - 导航到 **Settings > API Keys & Webhooks**
+   - 向下滚动到 **Test Webhooks** 部分
+   - 在 **Test Callback URL** 字段中输入您的 webhook URL
+   - （可选）复制 webhook 密钥并添加到插件设置
+
+3. 订阅事件：
+   - 在 Paystack 仪表板中选择要监听的事件
+   - 推荐：`charge.success` 事件
+
+4. 将 webhook 密钥添加到插件设置：
+   - 管理面板 > 支付 > Paystack
+   - 粘贴 webhook 密钥（如果使用签名验证）
 
 ## API 端点
 
-- `POST /paystack/initialize` - 初始化支付交易
-- `POST /paystack/verify` - 验证支付状态
-- `POST /callback/paystack` - 支付通知的 Webhook 端点
+- `POST /paystack/initialize` - 启动支付交易
+- `POST /paystack/verify` - 验证支付完成
+- `POST /webhook/paystack` - **Webhook 端点**（在 Paystack 中用于"测试回调 URL"）
+- `POST /paystack/webhook` - 替代 webhook 端点
 
 ## 系统要求
 
