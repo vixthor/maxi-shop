@@ -42,6 +42,11 @@ class PaystackService extends PaymentService
     {
         $total = round(Currency::getInstance()->convertByRate($this->order->total, $this->order->currency_value), 2) * 100;
 
+        $callbackUrl = route('paystack_callback', [], false);
+        if (strpos($callbackUrl, 'http') === false) {
+            $callbackUrl = url($callbackUrl);
+        }
+
         $data = [
             'amount'          => $total,
             'email'           => $this->order->email,
