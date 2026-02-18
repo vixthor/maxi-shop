@@ -41,13 +41,17 @@ class PaystackController extends Controller
                 return json_fail(trans('Paystack::common.order_not_found'));
             }
 
+            Log::info('Initializing Paystack payment for order: ' . $order->number);
+
             $paystackService = new PaystackService($order);
             $response = $paystackService->initializeTransaction();
 
             if (!$response['status']) {
+                Log::error('Paystack initialization failed: ' . json_encode($response));
                 return json_fail(trans('Paystack::common.initialize_fail'));
             }
 
+            // Store payment record with reference
             $paymentData = [
                 'amount' => $order->total,
                 'paid' => false,
@@ -55,10 +59,11 @@ class PaystackController extends Controller
             ];
             PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
 
+            Log::info('Paystack initialization successful. Reference: ' . $response['data']['reference']);
+
             return json_success([
-                'reference' => $response['data']['reference'],
-                'access_code' => $response['data']['access_code'],
                 'authorization_url' => $response['data']['authorization_url'],
+                'reference' => $response['data']['reference'],
             ], trans('Paystack::common.initialize_success'));
 
         } catch (\Exception $e) {
