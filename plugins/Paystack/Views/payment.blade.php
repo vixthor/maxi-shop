@@ -1,26 +1,31 @@
 @php
   $orderNumber = request()->get('order_number');
+  $publicKey = plugin_setting('paystack', 'public_key');
 @endphp
 
 <div id="paystack-payment" class="paystack-container">
   <div class="payment-info">
     <h3>@lang('Paystack::common.payment_title')</h3>
-    <button id="pay-btn" class="btn btn-primary">
+    <p>@lang('Paystack::common.proceed_payment')</p>
+    <button id="pay-btn" class="btn btn-primary" onclick="initializePayment()">
       @lang('Paystack::common.proceed_payment')
     </button>
   </div>
+  <div id="loading" style="display:none; text-align:center; margin-top: 20px;">
+    <p>@lang('Paystack::common.loading')</p>
+  </div>
 </div>
 
-<script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
-  const payBtn = document.getElementById('pay-btn');
   const orderNumber = '{{ $orderNumber }}';
-
-  payBtn.addEventListener('click', initializePayment);
+  const publicKey = '{{ $publicKey }}';
 
   function initializePayment() {
+    const payBtn = document.getElementById('pay-btn');
+    const loading = document.getElementById('loading');
+    
     payBtn.disabled = true;
-    payBtn.textContent = '@lang("Paystack::common.loading")';
+    loading.style.display = 'block';
 
     fetch('/paystack/initialize', {
       method: 'POST',
@@ -35,68 +40,19 @@
     .then(response => response.json())
     .then(data => {
       if (data.status) {
-        payWithPaystack(data.data);
+        // Redirect to Paystack authorization URL
+        window.location.href = data.data.authorization_url;
       } else {
         alert(data.message || '@lang("Paystack::common.initialize_fail")');
         payBtn.disabled = false;
-        payBtn.textContent = '@lang("Paystack::common.proceed_payment")';
+        loading.style.display = 'none';
       }
     })
     .catch(error => {
       console.error('Error:', error);
       alert('@lang("Paystack::common.initialize_fail")');
       payBtn.disabled = false;
-      payBtn.textContent = '@lang("Paystack::common.proceed_payment")';
-    });
-  }
-
-  function payWithPaystack(paymentData) {
-    const handler = PaystackPop.setup({
-      key: paymentData.authorization_url.split('key=')[1],
-      email: '{{ $order->email ?? "" }}',
-      amount: {{ ($order->total ?? 0) * 100 }},
-      ref: paymentData.reference,
-      currency: '{{ $order->currency_code ?? "NGN" }}',
-      onClose: function() {
-        alert('@lang("Paystack::common.payment_fail")');
-        payBtn.disabled = false;
-        payBtn.textContent = '@lang("Paystack::common.proceed_payment")';
-      },
-      onSuccess: function(response) {
-        verifyPayment(response.reference);
-      }
-    });
-    handler.openIframe();
-  }
-
-  function verifyPayment(reference) {
-    fetch('/paystack/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-      },
-      body: JSON.stringify({
-        reference: reference,
-        order_number: orderNumber
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status) {
-        alert('@lang("Paystack::common.payment_success")');
-        window.location.href = '/checkout/success?order_number=' + orderNumber;
-      } else {
-        alert(data.message || '@lang("Paystack::common.payment_fail")');
-        payBtn.disabled = false;
-        payBtn.textContent = '@lang("Paystack::common.proceed_payment")';
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      alert('@lang("Paystack::common.payment_fail")');
-      payBtn.disabled = false;
-      payBtn.textContent = '@lang("Paystack::common.proceed_payment")';
+      loading.style.display = 'none';
     });
   }
 </script>
@@ -106,15 +62,35 @@
     padding: 20px;
     border: 1px solid #ddd;
     border-radius: 5px;
+    max-width: 500px;
+    margin: 20px auto;
   }
 
   .payment-info {
     text-align: center;
   }
 
-  .pay-btn {
-    margin-top: 15px;
-    padding: 10px 30px;
+  .payment-info h3 {
+    margin-bottom: 15px;
+    color: #333;
+  }
+
+  .payment-info p {
+    margin-bottom: 20px;
+    color: #666;
+  }
+
+  #pay-btn {
+    padding: 12px 40px;
     font-size: 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  #pay-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>
+
