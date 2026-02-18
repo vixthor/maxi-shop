@@ -44,17 +44,30 @@ To configure the Paystack payment plugin:
 
 To enable automatic payment confirmation:
 
-1. Get your webhook URL from the plugin configuration
-2. Go to Paystack Dashboard > Settings > Webhooks
-3. Add the webhook URL
-4. Set the webhook secret in the plugin settings
-5. Subscribe to the `charge.success` event
+1. Get your webhook URL from below (use one of these):
+   - **Test Callback URL**: `https://yourdomain.com/webhook/paystack`
+   - **Test Webhook URL**: `https://yourdomain.com/paystack/webhook`
+
+2. Go to Paystack Dashboard:
+   - Navigate to **Settings > API Keys & Webhooks**
+   - Scroll to **Test Webhooks** section
+   - Enter your webhook URL in the **Test Callback URL** field
+   - (Optional) Copy the webhook secret and add to plugin settings
+
+3. Subscribe to events:
+   - In Paystack Dashboard, select events to listen to
+   - Recommended: `charge.success` event
+
+4. Add the webhook secret to your plugin settings:
+   - Admin Panel > Payments > Paystack
+   - Paste the webhook secret (if using signature verification)
 
 ## API Endpoints
 
-- `POST /paystack/initialize` - Initialize a payment transaction
-- `POST /paystack/verify` - Verify payment status
-- `POST /callback/paystack` - Webhook endpoint for payment notifications
+- `POST /paystack/initialize` - Start payment transaction
+- `POST /paystack/verify` - Verify payment completion  
+- `POST /webhook/paystack` - **Webhook endpoint** (use this for "Test Callback URL" in Paystack)
+- `POST /paystack/webhook` - Alternative webhook endpoint
 
 ## Requirements
 
