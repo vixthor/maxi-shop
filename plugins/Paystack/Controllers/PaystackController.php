@@ -158,31 +158,44 @@ class PaystackController extends Controller
             Log::info('Paystack callback reference: ' . $reference);
 
             if (!$reference) {
-                return response('Invalid reference', 400);
+                Log::warning('No reference provided in callback');
+                return redirect()->route('payment.success')->with('error', 'Invalid reference');
             }
 
             // Extract order number from reference (format: order_NUMBER_TIMESTAMP)
             $parts = explode('_', $reference);
             if (count($parts) < 2) {
                 Log::warning('Invalid reference format: ' . $reference);
-                return response('Invalid reference format', 400);
+                return redirect()->route('payment.success')->with('error', 'Invalid reference format');
             }
 
             $orderNumber = $parts[1];
+            Log::info('Looking up order: ' . $orderNumber);
+            
             $order = OrderRepo::getInstance()->getOrderByNumber($orderNumber);
 
             if (!$order) {
                 Log::warning('Order not found: ' . $orderNumber);
-                return response('Order not found', 404);
+                return redirect()->route('payment.success')->with('error', 'Order not found');
             }
+
+            Log::info('Found order: ' . $order->id . ' - ' . $order->number);
 
             try {
                 $paystackService = new PaystackService($order);
                 $response = $paystackService->verifyTransaction($reference);
 
-                if (!$response['status'] || $response['data']['status'] !== 'success') {
-                    Log::warning('Payment verification failed for: ' . $reference);
-                    return redirect()->route('order.payment.failed', ['order_number' => $orderNumber]);
+                Log::info('Verification response: ' . json_encode($response));
+
+                if (!$response['status']) {
+                    Log::warning('Payment API error: ' . json_encode($response));
+                    return redirect()->route('payment.success')->with('error', 'Payment verification failed');
+                }
+
+                $paymentStatus = $response['data']['status'] ?? null;
+                if ($paymentStatus !== 'success') {
+                    Log::warning('Payment not successful. Status: ' . $paymentStatus);
+                    return redirect()->route('payment.success')->with('error', 'Payment was not successful: ' . $paymentStatus);
                 }
 
                 // Update payment record
@@ -193,21 +206,24 @@ class PaystackController extends Controller
                     'reference' => json_encode($response['data']),
                 ];
                 PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
+                Log::info('Payment record updated for order: ' . $order->id);
 
                 // Update order status
                 StateMachineService::getInstance($order)->setShipment()->changeStatus(StateMachineService::PAID);
+                Log::info('Order status updated to PAID for order: ' . $order->id);
 
-                Log::info('Order ' . $orderNumber . ' paid successfully via Paystack callback');
-                return redirect()->route('order.payment.success', ['order_number' => $orderNumber]);
+                return redirect()->route('payment.success', ['order_number' => $orderNumber])->with('success', 'Payment successful');
 
             } catch (\Exception $e) {
                 Log::error('Payment verification error: ' . $e->getMessage());
-                return redirect()->route('order.payment.failed', ['order_number' => $orderNumber]);
+                Log::error('Stack trace: ' . $e->getTraceAsString());
+                return redirect()->route('payment.success')->with('error', 'Verification error: ' . $e->getMessage());
             }
 
         } catch (\Exception $e) {
             Log::error('Paystack callback error: ' . $e->getMessage());
-            return response('Error processing callback', 500);
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return redirect()->route('payment.success')->with('error', 'Error processing callback: ' . $e->getMessage());
         }
     }
 
