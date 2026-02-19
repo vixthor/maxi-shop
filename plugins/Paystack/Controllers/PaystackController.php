@@ -11,6 +11,7 @@ namespace Plugin\Paystack\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use InnoShop\Common\Repositories\Order\PaymentRepo;
@@ -179,7 +180,7 @@ class PaystackController extends Controller
 
         if (!$reference) {
             Log::warning('No reference provided in callback');
-            return redirect()->route('payment.success')->with('error', 'Invalid reference');
+            return $this->redirectToPaymentResult(null, 'Invalid reference');
         }
 
         // Extract order number from reference (format: order_NUMBER_TIMESTAMP)
@@ -188,7 +189,7 @@ class PaystackController extends Controller
         
         if (count($parts) < 2) {
             Log::warning('Invalid reference format: ' . $reference);
-            return redirect()->route('payment.success')->with('error', 'Invalid reference format');
+            return $this->redirectToPaymentResult(null, 'Invalid reference format');
         }
 
         $orderNumber = $parts[1];
@@ -200,18 +201,23 @@ class PaystackController extends Controller
 
             if (!$order) {
                 Log::warning('Order not found for number: ' . $orderNumber);
-                return redirect()->route('payment.success')->with('error', 'Order not found');
+                return $this->redirectToPaymentResult(null, 'Order not found');
             }
 
             Log::info('Verifying payment with Paystack...');
             $paystackService = new PaystackService($order);
             $response = $paystackService->verifyTransaction($reference);
 
+            if (!is_array($response) || !isset($response['status'])) {
+                Log::warning('Invalid verification response format', ['response' => $response]);
+                return $this->redirectToPaymentResult($orderNumber, 'Payment verification failed');
+            }
+
             Log::info('Verification response status: ' . ($response['status'] ? 'true' : 'false'));
 
             if (!$response['status']) {
                 Log::warning('Payment API returned false status');
-                return redirect()->route('payment.success')->with('error', 'Payment verification failed');
+                return $this->redirectToPaymentResult($orderNumber, 'Payment verification failed');
             }
 
             $paymentStatus = $response['data']['status'] ?? null;
@@ -219,7 +225,20 @@ class PaystackController extends Controller
             
             if ($paymentStatus !== 'success') {
                 Log::warning('Payment not successful. Status: ' . $paymentStatus);
-                return redirect()->route('payment.success')->with('error', 'Payment status: ' . $paymentStatus);
+                return $this->redirectToPaymentResult($orderNumber, 'Payment status: ' . $paymentStatus);
+            }
+
+            $expectedAmount = $paystackService->getOrderAmountInSubunit();
+            $actualAmount = (int) ($response['data']['amount'] ?? 0);
+            if ($actualAmount !== $expectedAmount) {
+                Log::warning('Paystack callback amount mismatch', [
+                    'order_number' => $orderNumber,
+                    'reference' => $reference,
+                    'expected' => $expectedAmount,
+                    'actual' => $actualAmount,
+                ]);
+
+                return $this->redirectToPaymentResult($orderNumber, 'Payment amount verification failed');
             }
 
             // Update payment record
@@ -239,13 +258,13 @@ class PaystackController extends Controller
             Log::info('Order status updated');
 
             Log::info('=== Callback SUCCESS ===');
-            return redirect()->route('payment.success', ['order_number' => $orderNumber])->with('success', 'Payment successful');
+            return $this->redirectToPaymentResult($orderNumber, null);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('=== Callback ERROR ===');
             Log::error('Message: ' . $e->getMessage());
             Log::error('Trace: ' . $e->getTraceAsString());
-            return redirect()->route('payment.success')->with('error', $e->getMessage());
+            return $this->redirectToPaymentResult($orderNumber ?? null, $e->getMessage());
         }
     }
 
@@ -320,10 +339,41 @@ class PaystackController extends Controller
 
             return json_success('Event received');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Paystack webhook error: ' . $e->getMessage());
             return json_success('Error processed');
         }
+    }
+
+    /**
+     * Redirect to payment result page safely.
+     *
+     * @param  string|null  $orderNumber
+     * @param  string|null  $error
+     * @return RedirectResponse
+     */
+    private function redirectToPaymentResult(?string $orderNumber, ?string $error): RedirectResponse
+    {
+        $params = [];
+        if ($orderNumber) {
+            $params['order_number'] = $orderNumber;
+        }
+
+        try {
+            $redirect = redirect()->route($error ? 'payment.fail' : 'payment.success', $params);
+        } catch (\Throwable $e) {
+            $path = $error ? '/payment/fail' : '/payment/success';
+            if ($orderNumber) {
+                $path .= '?order_number=' . urlencode($orderNumber);
+            }
+            $redirect = redirect($path);
+        }
+
+        if ($error) {
+            return $redirect->with('error', $error);
+        }
+
+        return $redirect->with('success', 'Payment successful');
     }
 
     /**

@@ -68,7 +68,12 @@ class PaystackService extends PaymentService
             throw new Exception('Failed to initialize payment: ' . $response->body());
         }
 
-        return $response->json();
+        $payload = $response->json();
+        if (!is_array($payload)) {
+            throw new Exception('Failed to initialize payment: invalid response payload');
+        }
+
+        return $payload;
     }
 
     /**
@@ -88,7 +93,12 @@ class PaystackService extends PaymentService
             throw new Exception('Failed to verify payment: ' . $response->body());
         }
 
-        return $response->json();
+        $payload = $response->json();
+        if (!is_array($payload)) {
+            throw new Exception('Failed to verify payment: invalid response payload');
+        }
+
+        return $payload;
     }
 
     /**
