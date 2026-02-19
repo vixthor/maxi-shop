@@ -61,10 +61,10 @@ class PaystackController extends Controller
 
             Log::info('Paystack initialization successful. Reference: ' . $response['data']['reference']);
 
-            return json_success([
+            return json_success(trans('Paystack::common.initialize_success'), [
                 'authorization_url' => $response['data']['authorization_url'],
                 'reference' => $response['data']['reference'],
-            ], trans('Paystack::common.initialize_success'));
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Paystack initialize error: ' . $e->getMessage());
@@ -102,19 +102,32 @@ class PaystackController extends Controller
                 return json_fail(trans('Paystack::common.verify_fail'));
             }
 
+            $expectedAmount = $paystackService->getOrderAmountInSubunit();
+            $actualAmount = (int) ($response['data']['amount'] ?? 0);
+            if ($actualAmount !== $expectedAmount) {
+                Log::warning('Paystack verify amount mismatch', [
+                    'order_number' => $order->number,
+                    'reference' => $reference,
+                    'expected' => $expectedAmount,
+                    'actual' => $actualAmount,
+                ]);
+
+                return json_fail(trans('Paystack::common.verify_fail'));
+            }
+
             // Update payment record
             $paymentData = [
                 'charge_id' => $response['data']['reference'],
                 'amount' => $order->total,
                 'paid' => true,
-                'reference' => $response['data'],
+                'reference' => json_encode($response['data']),
             ];
             PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
 
             // Update order status
             StateMachineService::getInstance($order)->setShipment()->changeStatus(StateMachineService::PAID);
 
-            return json_success([], trans('Paystack::common.payment_success'));
+            return json_success(trans('Paystack::common.payment_success'), []);
 
         } catch (\Exception $e) {
             Log::error('Paystack verify error: ' . $e->getMessage());
@@ -141,20 +154,12 @@ class PaystackController extends Controller
         Log::info('Body: ' . $request->getContent());
 
         try {
-            // Handle GET redirect from Paystack (after user completes payment)
-            if ($request->isMethod('get')) {
-                return $this->handlePaystackCallback($request);
-            }
-
             // Handle POST webhook from Paystack
             return $this->handlePaystackWebhook($request);
         } catch (\Exception $e) {
             Log::error('Webhook handler error: ' . $e->getMessage());
             Log::error('Trace: ' . $e->getTraceAsString());
-            
-            if ($request->isMethod('get')) {
-                return redirect()->route('payment.success')->with('error', 'Callback error: ' . $e->getMessage());
-            }
+
             return json_success('Error received');
         }
     }
@@ -254,16 +259,20 @@ class PaystackController extends Controller
     {
 
         try {
-            $webhookSecret = plugin_setting('paystack.webhook_secret');
+            $secretKey = plugin_setting('paystack.secret_key');
             $signature = $request->header('x-paystack-signature');
+            $payload = $request->getContent();
 
             // Verify webhook signature
-            if ($webhookSecret) {
-                $computedSignature = hash_hmac('sha512', $request->getContent(), $webhookSecret);
-                if ($signature !== $computedSignature) {
-                    Log::warning('Invalid Paystack webhook signature');
-                    return json_fail('Invalid signature');
-                }
+            if (empty($secretKey) || empty($signature)) {
+                Log::warning('Missing Paystack webhook secret/signature');
+                return json_success('Event received');
+            }
+
+            $computedSignature = hash_hmac('sha512', $payload, $secretKey);
+            if (!hash_equals($computedSignature, $signature)) {
+                Log::warning('Invalid Paystack webhook signature');
+                return json_success('Event received');
             }
 
             $requestData = $request->json()->all();
@@ -277,12 +286,27 @@ class PaystackController extends Controller
                 $order = OrderRepo::getInstance()->getOrderByNumber($orderNumber);
 
                 if ($order) {
+                    $paystackService = new PaystackService($order);
+                    $expectedAmount = $paystackService->getOrderAmountInSubunit();
+                    $actualAmount = (int) ($data['amount'] ?? 0);
+
+                    if ($actualAmount !== $expectedAmount) {
+                        Log::warning('Paystack webhook amount mismatch', [
+                            'order_number' => $orderNumber,
+                            'reference' => $data['reference'] ?? null,
+                            'expected' => $expectedAmount,
+                            'actual' => $actualAmount,
+                        ]);
+
+                        return json_success('Event received');
+                    }
+
                     // Update payment record
                     $paymentData = [
-                        'charge_id' => $data['reference'],
+                        'charge_id' => $data['reference'] ?? null,
                         'amount' => $order->total,
                         'paid' => true,
-                        'reference' => $data,
+                        'reference' => json_encode($data),
                     ];
                     PaymentRepo::getInstance()->createOrUpdatePayment($order->id, $paymentData);
 

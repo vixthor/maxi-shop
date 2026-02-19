@@ -30,7 +30,7 @@ To configure the Paystack payment plugin:
 2. Enter your Paystack API credentials:
    - **Public Key**: Found in your Paystack Dashboard
    - **Secret Key**: Found in your Paystack Dashboard
-   - **Webhook Secret**: Optional, for validating incoming webhooks
+   - **Webhook Secret**: Optional (legacy field). Webhook signatures are validated with your Paystack Secret Key
    - **Test Mode**: Toggle between test and live mode
 
 ## Getting Paystack API Keys
@@ -45,14 +45,13 @@ To configure the Paystack payment plugin:
 To enable automatic payment confirmation:
 
 1. Get your webhook URL from below (use one of these):
-   - **Test Callback URL**: `https://yourdomain.com/webhook/paystack`
-   - **Test Webhook URL**: `https://yourdomain.com/paystack/webhook`
+   - **Callback URL (user redirect)**: `https://yourdomain.com/paystack/callback`
+   - **Webhook URL (server event)**: `https://yourdomain.com/webhook/paystack`
 
 2. Go to Paystack Dashboard:
    - Navigate to **Settings > API Keys & Webhooks**
-   - Scroll to **Test Webhooks** section
-   - Enter your webhook URL in the **Test Callback URL** field
-   - (Optional) Copy the webhook secret and add to plugin settings
+   - Set **Callback URL** to `https://yourdomain.com/paystack/callback`
+   - Set **Webhook URL** to `https://yourdomain.com/webhook/paystack`
 
 3. Subscribe to events:
    - In Paystack Dashboard, select events to listen to
@@ -60,13 +59,14 @@ To enable automatic payment confirmation:
 
 4. Add the webhook secret to your plugin settings:
    - Admin Panel > Payments > Paystack
-   - Paste the webhook secret (if using signature verification)
+   - Optional: keep this empty (signature verification uses your Secret Key)
 
 ## API Endpoints
 
 - `POST /paystack/initialize` - Start payment transaction
 - `POST /paystack/verify` - Verify payment completion  
-- `POST /webhook/paystack` - **Webhook endpoint** (use this for "Test Callback URL" in Paystack)
+- `GET /paystack/callback` - Callback endpoint for Paystack user redirect
+- `POST /webhook/paystack` - **Webhook endpoint** (use this for Webhook URL in Paystack)
 - `POST /paystack/webhook` - Alternative webhook endpoint
 
 ## Requirements

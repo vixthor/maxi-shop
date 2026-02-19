@@ -14,7 +14,7 @@ use Plugin\Paystack\Controllers\PaystackController;
 Route::post('/paystack/initialize', [PaystackController::class, 'initialize'])->name('paystack_initialize');
 Route::post('/paystack/verify', [PaystackController::class, 'verify'])->name('paystack_verify');
 
-// Webhook/Callback endpoints - Paystack redirects user via GET, webhooks via POST
-Route::match(['get', 'post'], '/webhook/paystack', [PaystackController::class, 'webhook'])->name('paystack_webhook');
-Route::match(['get', 'post'], '/paystack/webhook', [PaystackController::class, 'webhook'])->name('paystack_webhook_alt');
+// Webhook/Callback endpoints - callback via GET, webhook via POST
+Route::post('/webhook/paystack', [PaystackController::class, 'webhook'])->name('paystack_webhook');
+Route::post('/paystack/webhook', [PaystackController::class, 'webhook'])->name('paystack_webhook_alt');
 Route::get('/paystack/callback', [PaystackController::class, 'callback'])->name('paystack_callback');

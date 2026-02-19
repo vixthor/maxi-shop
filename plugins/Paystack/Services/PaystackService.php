@@ -40,7 +40,7 @@ class PaystackService extends PaymentService
      */
     public function initializeTransaction(): array
     {
-        $total = round(Currency::getInstance()->convertByRate($this->order->total, $this->order->currency_value), 2) * 100;
+        $total = $this->getOrderAmountInSubunit();
 
         $callbackUrl = route('paystack_callback', [], false);
         if (strpos($callbackUrl, 'http') === false) {
@@ -50,6 +50,7 @@ class PaystackService extends PaymentService
         $data = [
             'amount'          => $total,
             'email'           => $this->order->email,
+            'callback_url'    => $callbackUrl,
             'metadata'        => [
                 'order_number'  => $this->order->number,
                 'customer_id'   => $this->order->customer_id,
@@ -88,6 +89,16 @@ class PaystackService extends PaymentService
         }
 
         return $response->json();
+    }
+
+    /**
+     * Get order amount in Paystack subunit (kobo/cents)
+     *
+     * @return int
+     */
+    public function getOrderAmountInSubunit(): int
+    {
+        return (int) round(Currency::getInstance()->convertByRate($this->order->total, $this->order->currency_value) * 100);
     }
 
     /**

@@ -27,7 +27,7 @@
     .then(data => {
       console.log('Initialize response:', data);
       
-      if (data.status && data.data && data.data.authorization_url) {
+      if (data.success && data.data && data.data.authorization_url) {
         // Redirect to Paystack checkout
         window.location.href = data.data.authorization_url;
       } else {
