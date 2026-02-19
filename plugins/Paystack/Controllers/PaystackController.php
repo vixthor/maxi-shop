@@ -360,7 +360,8 @@ class PaystackController extends Controller
         }
 
         try {
-            $redirect = redirect()->route($error ? 'payment.fail' : 'payment.success', $params);
+            $url = front_route($error ? 'payment.fail' : 'payment.success', $params);
+            $redirect = redirect()->to($url);
         } catch (\Throwable $e) {
             $path = $error ? '/payment/fail' : '/payment/success';
             if ($orderNumber) {
